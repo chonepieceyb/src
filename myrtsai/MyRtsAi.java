@@ -92,7 +92,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         PhysicalGameState pgs = gs.getPhysicalGameState();
         Player p = gs.getPlayer(player);
         //获取战场的信息
-        int harvestNum=0;
+        int harvestNum=0;//
         List<Unit> harvestWorkers = new ArrayList<>();
         List<Unit> buildWorker = new ArrayList<>();
         List<Unit> warriorUnits = new ArrayList<>();
