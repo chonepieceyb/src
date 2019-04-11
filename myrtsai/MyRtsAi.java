@@ -145,7 +145,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         }
         System.out.println("我方的大小"+evlourUnits.size());
         System.out.println("敌方的大小"+enermyUnits.size());
-        int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.5f ,80);
+        int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.3f ,5);
         enermyUnits.add(enermy_Base);
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
@@ -191,10 +191,8 @@ public class MyRtsAi extends AbstractionLayerAI{
         单个兵种的战斗力公式 1+(maxd/d)*distanceLevel 注：这里没有考虑兵种的差异，而实考虑数目和距离，兵种的差异体现在之后还有一个 矩阵 maxd表示地图最大距离，而d 表示本兵种距离对方基地的距离
         */
         int battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
-        {1 ,7 ,9 ,7},{7 ,1, 3, 3},{ 9 ,3, 1, 5},{7 ,3, 5 ,1}
+        {1 ,-3,-5,-4},{3 ,1, 2, -2},{ 5 ,-2, 1, 2},{4 ,2, -2 ,1}
     };
-        float battleMatrix[][] = new float[4][4];
-        //先判断基地是否存在 
         if(my_Base==null && enermy_Base!=null){    //我方没基地了 大劣势
             System.out.println("我方没基地了");
             return 0;
@@ -211,11 +209,6 @@ public class MyRtsAi extends AbstractionLayerAI{
         float enermyCombat[]= new float[4]; //敌方战力
         //战力初始化
         int i,j;
-        for( i=0;i<4;i++){
-            for( j=0;j<4;j++){
-               battleMatrix[i][j]=0;
-            }
-        }
         for(i=0;i<4;i++){
             ourCombat[i]=0;
             enermyCombat[i]=0;
@@ -271,33 +264,46 @@ public class MyRtsAi extends AbstractionLayerAI{
                     }
                }
             }
-          //计算 battleMatrix
+          //计算 myCombatAll
+          float myCombatAll=0;
+          int enermyNoZero=0;
           for(i=0;i<4;i++){
-              for(j=0;j<4;j++){
-                  battleMatrix[i][j]=ourCombat[i]-enermyCombat[j];   //我方 i 部队的战力和 - 地方 j部队的战力和
+              if(enermyCombat[i]!=0){
+                enermyNoZero++;
+              }
+          }   
+          if(enermyNoZero==0){
+              return 4;
+          }
+          for(i=0;i<4;i++){
+              float myCombatI=0;
+              if(ourCombat[i]!=0){
+                for(j=0;j<4;j++){
+                    if(enermyCombat[j]!=0){
+                        if(battleWeight[i][j]>0){
+                           myCombatI+=(ourCombat[i]*battleWeight[i][j]-enermyCombat[j]);
+                        }else{
+                             myCombatI+=(ourCombat[i]-enermyCombat[j]*battleWeight[i][j]);
+                        }
+                    }
+                }
+                myCombatAll+= myCombatI/ enermyNoZero;
               }
           }
-          //两矩阵对应乘得到一个数
-         float myCombatAll=0;
-         for(i=0;i<4;i++){
-             for(j=0;j<4;j++){
-                
-                myCombatAll+=battleMatrix[i][j]*battleWeight[i][j];   //我方 i 部队的战力和 - 地方 j部队的战力和
-              }
-          }
+          
          System.out.println("战力之和"+myCombatAll);
          scoreStep*=maxD;
          //评估威胁
 
          if(myCombatAll> -scoreStep && myCombatAll< scoreStep  ){
              return 2;
-         }else if(myCombatAll>=scoreStep&& myCombatAll<2*scoreStep){
+         }else if(myCombatAll>=scoreStep&& myCombatAll<3*scoreStep){
              return 3;
-         }else if(myCombatAll>=2*scoreStep){
+         }else if(myCombatAll>=3*scoreStep){
              return 4;
-         }else if(myCombatAll<=-scoreStep&& myCombatAll> -2*scoreStep){
+         }else if(myCombatAll<=-scoreStep&& myCombatAll> -3*scoreStep){
              return 1;
-         }else if(myCombatAll<=-2*scoreStep){
+         }else if(myCombatAll<=-3*scoreStep){
              return 0;
          }else{
              System.out.println("评估出现问题,认为战力相同");

@@ -41,7 +41,7 @@ public class GameVisualSimulationTest {
         boolean gameover = false;
         
         AI ai1 = new MyRtsAi(utt,aps);        
-        AI ai2 = new CRush_V1(utt,aps);
+        AI ai2 = new HeavyRush(utt,aps);
        // AI ai2 = new RandomBiasedAI();
 
         JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
