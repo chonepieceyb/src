@@ -97,16 +97,33 @@ public class MyRtsAi extends AbstractionLayerAI{
         List<Unit> buildWorker = new ArrayList<>();
         List<Unit> warriorUnits = new ArrayList<>();
         List<Unit> enermyUnits = new ArrayList<>();
+        List<Unit> evlourUnits = new ArrayList<>();  //用于评估的我方单位
         Unit my_Base = null;
         Unit my_Barracks = null;
         Unit enermy_Base = null;
+        Unit evl_myBase=null; //用于评估的my_base
         //对战场所有单位进行分类
+          for(Unit u: pgs.getUnits()){
+              if(u!=null ){
+                  if(u.getPlayer() == player ){
+                      if(u.getType()!=baseType && u.getType().canAttack){
+                          evlourUnits .add(u);
+                      }else if(u.getType()==baseType){
+                          evl_myBase=u;
+                      }
+                  }
+              }
+          }
         for(Unit u: pgs.getUnits()){
             if(u!=null ){
-                if(u.getPlayer() == player && gs.getActionAssignment(u)==null){   //我方的单位
+                  if(u.getPlayer() == player && u.getType()==baseType){
+                      evl_myBase=u;
+                  }
+                  if(u.getPlayer() == player && gs.getActionAssignment(u)==null){   //我方的单位
                     if(u.getType() == baseType){   // 基地
                         my_Base = u;
-                    }else if(u.getType()== barracksType){   //兵营
+                    }
+                        else if(u.getType()== barracksType){   //兵营
                         my_Barracks = u; 
                     }else if(u.getType() == workerType && u.getType().canHarvest && buildWorker.size()<1&&harvestNum>0&&my_Barracks==null){
                         buildWorker.add(u);
@@ -126,6 +143,9 @@ public class MyRtsAi extends AbstractionLayerAI{
                 }
             }
         }
+        System.out.println("我方的大小"+evlourUnits.size());
+        System.out.println("敌方的大小"+enermyUnits.size());
+        int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.5f ,80);
         enermyUnits.add(enermy_Base);
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
@@ -134,6 +154,15 @@ public class MyRtsAi extends AbstractionLayerAI{
         this.baseBehavior(my_Base, p, gs, 1);
         // 使用战略
         this.rushTactics(gs, player, "Light", my_Barracks, warriorUnits, enermyUnits, 2, 3);
+        
+        switch(battleState){
+            case 0: System.out.println("我方大劣势");break;
+            case 1: System.out.println("我方劣势");break;
+            case 2: System.out.println("局势平衡");break;
+            case 3: System.out.println("我方优势");break;
+            case 4: System.out.println("我方大优势");break;
+            default: System.out.println("评估出错");
+        }
         return translateActions(player, gs);
     }
     
@@ -144,6 +173,139 @@ public class MyRtsAi extends AbstractionLayerAI{
     基地的行为，说明：基地主要是为了训练农民，训练农民主要有两个目的 1 收集资源 2 rush
     参数说明 input:前面三个参数 必要的，最后一个参数 1 表示训练收获的农民，2表示训练rush的农民 3表示不区分训练农民（先训练收获的农民，再训练rush的农民）
     */
+ 
+    /* 
+    分析战场形势的函数：从两个方面进行评估（1 敌我双方各个单位数目的差值（一定考虑） 2 敌我双方单位和对方基地的距离的插值（可选择考虑的程度）暂时不考虑兵营
+    output: 一个 int 范围从 0 - 4  0:我方大劣势 1：我方劣势 2：双方均等 3：我方优势 4 我方大优势
+    input: gs同之前 , 
+           ourUnits(我方单位）和enermyUnits(敌方单位）是评估的对象， 
+           myBase 我方基地   enermyBase 敌方基地
+           distanceLevel ： 敌我双方距离的影响因子，即是否将敌我双方距离对方基地的距离也纳入评估的范围  范围从 0 到 1 0是不考虑距离，1 考虑距离且程度最大
+           scoreStep : 评价阈值的步长
+    */
+    public int evaluateState(Unit my_Base,List<Unit> ourUnits,Unit enermy_Base, List<Unit> enermyUnits,float distanceLevel, int scoreStep){
+        /* 
+        
+        battleMatrix战斗矩阵 行、列（0:代表 worker, 1:light 2:range 3:heavy)
+        battleMatrix[i][j] 表示 我方的i兵种战斗力之和 - 敌方的 j兵种战斗力之和
+        单个兵种的战斗力公式 1+(maxd/d)*distanceLevel 注：这里没有考虑兵种的差异，而实考虑数目和距离，兵种的差异体现在之后还有一个 矩阵 maxd表示地图最大距离，而d 表示本兵种距离对方基地的距离
+        */
+        int battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
+        {1 ,7 ,9 ,7},{7 ,1, 3, 3},{ 9 ,3, 1, 5},{7 ,3, 5 ,1}
+    };
+        float battleMatrix[][] = new float[4][4];
+        //先判断基地是否存在 
+        if(my_Base==null && enermy_Base!=null){    //我方没基地了 大劣势
+            System.out.println("我方没基地了");
+            return 0;
+        }
+        if(enermy_Base == null && my_Base!=null){   //敌方没基地了 大优势
+            System.out.println("敌方没基地了");
+            return 4;
+        }
+        if(my_Base == null && enermy_Base == null){    //敌我双方都没有基地，不考虑距离因素
+            System.out.println("都没基地了");
+            distanceLevel=0;
+        }
+        float ourCombat[] = new float[4];  //我方战力
+        float enermyCombat[]= new float[4]; //敌方战力
+        //战力初始化
+        int i,j;
+        for( i=0;i<4;i++){
+            for( j=0;j<4;j++){
+               battleMatrix[i][j]=0;
+            }
+        }
+        for(i=0;i<4;i++){
+            ourCombat[i]=0;
+            enermyCombat[i]=0;
+        }
+        int maxD;
+        //获取地图最大距离
+        if(distanceLevel==0){
+            maxD=0;
+        }else{
+            maxD= Math.abs( my_Base.getX()- enermy_Base.getX())+ Math.abs( my_Base.getY()- enermy_Base.getY());
+        }
+        //开始统计我方战斗数组
+        for(Unit u1: ourUnits){
+           if(u1!=null && u1.getType().canAttack){  //如果不为空且能够进攻
+                float combatValue=0;
+                if(enermy_Base!=null){   //敌方基地存在才能计算距离
+                       int d = Math.abs( u1.getX()- enermy_Base.getX())+ Math.abs(u1.getY()- enermy_Base.getY());
+                       combatValue = maxD+(maxD/d)*distanceLevel;
+                }else{
+                    combatValue =maxD;
+                }
+                UnitType uType =u1.getType();
+                if(uType == workerType){
+                    ourCombat[0]+=combatValue;
+                }else if(uType == lightType){
+                    ourCombat[1]+=combatValue;
+                }else if(uType== rangedType){
+                    ourCombat[2]+=combatValue;
+                }else if(uType == heavyType){
+                    ourCombat[3]+=combatValue;
+                }
+           }
+        }
+        //统计敌方战斗数组
+        for(Unit u2: enermyUnits){
+               if(u2!=null && u2.getType().canAttack){  //如果不为空且能够进攻
+                    float combatValue=0;
+                    if(my_Base!=null){   //我方基地存在才能计算距离
+                           int d = Math.abs( u2.getX()- my_Base.getX())+ Math.abs(u2.getY()- my_Base.getY());
+                           combatValue = maxD+(maxD/d)*distanceLevel;
+                    }else{
+                        combatValue =maxD ;
+                    }
+                    UnitType uType =u2.getType();
+                    if(uType == workerType){
+                        enermyCombat[0]+=combatValue;
+                    }else if(uType == lightType){
+                        enermyCombat[1]+=combatValue;
+                    }else if(uType== rangedType){
+                        enermyCombat[2]+=combatValue;
+                    }else if(uType == heavyType){
+                        enermyCombat[3]+=combatValue;
+                    }
+               }
+            }
+          //计算 battleMatrix
+          for(i=0;i<4;i++){
+              for(j=0;j<4;j++){
+                  battleMatrix[i][j]=ourCombat[i]-enermyCombat[j];   //我方 i 部队的战力和 - 地方 j部队的战力和
+              }
+          }
+          //两矩阵对应乘得到一个数
+         float myCombatAll=0;
+         for(i=0;i<4;i++){
+             for(j=0;j<4;j++){
+                
+                myCombatAll+=battleMatrix[i][j]*battleWeight[i][j];   //我方 i 部队的战力和 - 地方 j部队的战力和
+              }
+          }
+         System.out.println("战力之和"+myCombatAll);
+         scoreStep*=maxD;
+         //评估威胁
+
+         if(myCombatAll> -scoreStep && myCombatAll< scoreStep  ){
+             return 2;
+         }else if(myCombatAll>=scoreStep&& myCombatAll<2*scoreStep){
+             return 3;
+         }else if(myCombatAll>=2*scoreStep){
+             return 4;
+         }else if(myCombatAll<=-scoreStep&& myCombatAll> -2*scoreStep){
+             return 1;
+         }else if(myCombatAll<=-2*scoreStep){
+             return 0;
+         }else{
+             System.out.println("评估出现问题,认为战力相同");
+             return 2;
+         }
+          
+          
+    }
      public void baseBehavior(Unit u, Player p, GameState gs,int trainType) {
          //先统计目前战场上的农民的数目
         PhysicalGameState pgs=gs.getPhysicalGameState();
@@ -446,7 +608,6 @@ public class MyRtsAi extends AbstractionLayerAI{
                   targetUnits.add(target);
               }
           }else{
-              System.out.println("敌方规模过小");
               targetUnits=enermyUnits;
           }
          
