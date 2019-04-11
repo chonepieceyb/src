@@ -153,7 +153,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true, 1);
         this.baseBehavior(my_Base, p, gs, 1);
         // 使用战略
-        this.rushTactics(gs, player, "Light", my_Barracks, warriorUnits, enermyUnits, 2, 3);
+        this.rushTactics(gs, player, "Ranged", my_Barracks, warriorUnits, enermyUnits, 2, 3);
         
         switch(battleState){
             case 0: System.out.println("我方大劣势");break;
@@ -246,7 +246,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         for(Unit u2: enermyUnits){
                if(u2!=null && u2.getType().canAttack){  //如果不为空且能够进攻
                     float combatValue=0;
-                    if(my_Base!=null){   //我方基地存在才能计算距离
+                    if(my_Base!=null){   //我方基地存在才能计算距离R
                            int d = Math.abs( u2.getX()- my_Base.getX())+ Math.abs(u2.getY()- my_Base.getY());
                            combatValue = maxD+(maxD/d)*distanceLevel;
                     }else{
@@ -283,7 +283,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                         if(battleWeight[i][j]>0){
                            myCombatI+=(ourCombat[i]*battleWeight[i][j]-enermyCombat[j]);
                         }else{
-                             myCombatI+=(ourCombat[i]-enermyCombat[j]*battleWeight[i][j]);
+                             myCombatI+=(ourCombat[i]+enermyCombat[j]*battleWeight[i][j]);
                         }
                     }
                 }
