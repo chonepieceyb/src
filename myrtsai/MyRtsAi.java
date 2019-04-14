@@ -145,7 +145,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         }
         System.out.println("我方的大小"+evlourUnits.size());
         System.out.println("敌方的大小"+enermyUnits.size());
-        int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.3f ,5);
+        int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
         enermyUnits.add(enermy_Base);
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
@@ -153,7 +153,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true, 1);
         this.baseBehavior(my_Base, p, gs, 1);
         // 使用战略
-        this.rushTactics(gs, player, "Ranged", my_Barracks, warriorUnits, enermyUnits, 2, 3);
+        this.rushTactics(gs, player, "Light", my_Barracks, warriorUnits, enermyUnits, 2, 3);
         
         switch(battleState){
             case 0: System.out.println("我方大劣势");break;
@@ -173,7 +173,20 @@ public class MyRtsAi extends AbstractionLayerAI{
     基地的行为，说明：基地主要是为了训练农民，训练农民主要有两个目的 1 收集资源 2 rush
     参数说明 input:前面三个参数 必要的，最后一个参数 1 表示训练收获的农民，2表示训练rush的农民 3表示不区分训练农民（先训练收获的农民，再训练rush的农民）
     */
- 
+    
+    
+    /*
+    判断对面的主力兵种的函数，（主要是Light,Ranged,Heavy,Worker,混合兵种（没有一个兵种的数目占绝对优势的时候）) 其中 light heavy ranged的数量比例都是 1：1 ,而worker不然
+    参数说明： int player, 敌方的ID
+               GameState gs 战场的信息
+               workerValue:将农民折换成 light heavy ranged  折换后的Num= 原本Num/workerValue
+               NumThreshold: 确定是否有主力兵种的阈值，如果 maxNum-second<NumThreshoud 认为这时候对面是混合兵种。
+    output: 一个int数组，int[0] 0:主力是worker 1主力是light 2主力是ranged 3主力是 heavy 4 混合兵种  int[1]:如果不是混合兵种的话，该值为0，否则该值为混合的类型 1： WL 2: WR 3： WH 4：LR 5 LH 6 RH
+    */
+    public int[] evaluateEnermyMajorUnit(GameState gs, int player,int workerValue, int NumThreshold){
+       
+    }
+    
     /* 
     分析战场形势的函数：从两个方面进行评估（1 敌我双方各个单位数目的差值（一定考虑） 2 敌我双方单位和对方基地的距离的插值（可选择考虑的程度）暂时不考虑兵营
     output: 一个 int 范围从 0 - 4  0:我方大劣势 1：我方劣势 2：双方均等 3：我方优势 4 我方大优势
