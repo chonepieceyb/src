@@ -339,7 +339,11 @@ public class MyRtsAi extends AbstractionLayerAI{
            System.out.println("判断主力兵种出错1");
            return MajorUnitType;
        }
-       if(maxNum-secondNum >NumThreshold ){
+       if(secondNum==0 && maxNum!=0){
+           MajorUnitType[0]=largestUnitID;
+           MajorUnitType[1]=0;
+       }
+       else if(maxNum-secondNum >NumThreshold ){
            MajorUnitType[0]=largestUnitID;
            MajorUnitType[1]=0;
        }else{
