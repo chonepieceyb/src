@@ -62,7 +62,16 @@ public class MyRtsAi extends AbstractionLayerAI{
      int maxLightNum=-1;  //轻甲兵的最大数目
      int maxRangedNum=-1; //远程兵的最大数目
      int HarvestWorkersNum=0;
- 
+     
+     //一些矩阵
+     int m_battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
+        {1 ,-3,-5,-4},{3 ,1, 2, -2},{ 5 ,-2, 1, 2},{4 ,2, -2 ,1}};
+     int m_AD_weight_V1[][]={      //我方在左上角的时候..
+         { 4,2},{2,1}
+     };
+     int m_AD_weight_V2[][]={      //我方在右下角的时候..
+         { 1,2},{2,4}
+     };
     public MyRtsAi(UnitTypeTable a_utt) {
        this(a_utt, new AStarPathFinding());
     }
@@ -134,7 +143,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                     }else if (u.getType().canAttack){     //可作战单位
                         warriorUnits.add(u);
                     }
-                }else{      //地方单位
+                }else{      //敌方单位
                     if(u.getType() == baseType){
                         enermy_Base =u ;
                     }else if(u.getPlayer()>=0 && u.getPlayer()!=p.getID()){
@@ -174,17 +183,164 @@ public class MyRtsAi extends AbstractionLayerAI{
     参数说明 input:前面三个参数 必要的，最后一个参数 1 表示训练收获的农民，2表示训练rush的农民 3表示不区分训练农民（先训练收获的农民，再训练rush的农民）
     */
     
+    /*
+    判断对面是攻击还是防守的函数
+    返回值 0：敌方防守 1：敌方进攻 : -1不正常
+    input: gs 同之前，
+           p: 我方的player！
+    NumThrehold,决定是攻还是守的阈值 如果 结果<NumThrehold 结果是防守， 结果》=NumThrehold 结果是攻击
+    */
+    public int evaluate_AD_Tactics(PhysicalGameState pgs, Player p, float NumThrehold ){
+      int width = pgs.getWidth();
+      int height = pgs.getHeight();
+      int center[] = {width/2,height/2};
+      int AD_weight[][] = new int[2][2];
+      switch(p.getID()){              // ID是 0 基地在左上方 1基地在右下方
+          case 0: AD_weight = m_AD_weight_V1; break;//左上方的时候选择V1矩阵 
+          case 1: AD_weight=m_AD_weight_V2;break;
+          default: return -1;
+      }
+      int i=0;
+      int j=0;
+      //将整个战场分成4块，统计敌方的兵力在4块所占的比例，然后* AD_weight 根据最后的结果与阈值比较得出攻守结论
+      float percentOfUnits[][] = new float[2][2];  //初始化
+      int UnitsNum=0;
+      for(i=0;i<2;i++){
+          for(j=0;j<2;j++){
+              percentOfUnits[i][j] =0 ;
+          }
+      }
+      for(Unit u :pgs.getUnits()){
+            if(u!=null && u.getPlayer()>=0 && u.getPlayer()!=p.getID() && u.getType().canAttack){
+               
+                int tempX=u.getX(); int tempY=u.getY();   //获取坐标
+                if(tempX>=0 && tempX<center[0] && tempY>=0 && tempY<center[1]){   //左上
+                    percentOfUnits[0][0]++; 
+                    UnitsNum++;  //总数目+1
+                 }else if (tempX>=center[0] && tempX<=width && tempY>=0 && tempY<center[1]) {   //右上
+                    percentOfUnits[0][1]++;
+                     UnitsNum++;  //总数目+1
+                 }else if (tempX>=0 && tempX<center[0] && tempY>=center[1] && tempY<=height){   //左下
+                    percentOfUnits[1][0]++;
+                     UnitsNum++;  //总数目+1
+                 }else if (tempX>=center[0] && tempX<=width && tempY>=center[1] && tempY<=height){  //右下
+                     percentOfUnits[1][1]++;
+                     UnitsNum++;
+                 }
+            }
+      }
+      //计算概率
+      if(UnitsNum==0){
+          return -1;
+      }
+       for(i=0;i<2;i++){
+          for(j=0;j<2;j++){
+              percentOfUnits[i][j] /= UnitsNum ;
+          }
+      }
+       //和权矩阵相乘
+       float AD_Value =0;
+        for(i=0;i<2;i++){
+          for(j=0;j<2;j++){
+             AD_Value+= percentOfUnits[i][j] * AD_weight[i][j] ;
+          }
+      }
+       if(AD_Value>=0 && AD_Value< NumThrehold){
+           return 0;   //防守
+       }else if(AD_Value >=NumThrehold){
+           return 1;   //进攻
+       }else{
+           return -1;  //出错
+       }
+    }
     
     /*
     判断对面的主力兵种的函数，（主要是Light,Ranged,Heavy,Worker,混合兵种（没有一个兵种的数目占绝对优势的时候）) 其中 light heavy ranged的数量比例都是 1：1 ,而worker不然
-    参数说明： int player, 敌方的ID
-               GameState gs 战场的信息
+    参数说明： Player p, 我方
+               PhysicalGameState  pgs 战场的信息
                workerValue:将农民折换成 light heavy ranged  折换后的Num= 原本Num/workerValue
-               NumThreshold: 确定是否有主力兵种的阈值，如果 maxNum-second<NumThreshoud 认为这时候对面是混合兵种。
-    output: 一个int数组，int[0] 0:主力是worker 1主力是light 2主力是ranged 3主力是 heavy 4 混合兵种  int[1]:如果不是混合兵种的话，该值为0，否则该值为混合的类型 1： WL 2: WR 3： WH 4：LR 5 LH 6 RH
+               NumThreshold: 确定是否有主力兵种的阈值，如果 maxNum-second<NumThreshoud(不包括NumThreshoud) 认为这时候对面是混合兵种。
+    output: 一个int数组，int[0] 0:主力是worker 1主力是light 2主力是ranged 3主力是 heavy 4 混合兵种  int[1]:如果不是混合兵种的话，该值为0，否则该值为混合的类型 1： WL 2: WR 3： WH 4：LR 5 LH 6 RH ,如果有任意一个值为-1的话说明返回值有问题
     */
-    public int[] evaluateEnermyMajorUnit(GameState gs, int player,int workerValue, int NumThreshold){
-       
+    public int[] evaluateEnermyMajorUnit(PhysicalGameState pgs, Player p,int workerValue, int NumThreshold){
+        //统计战场上敌方兵种的数目
+        //分量 0 农民数目，1 light 2 ranged 3hearvy
+       int MajorUnitType[]= new int[2];
+       MajorUnitType[0]=-1;MajorUnitType[1]=-1;
+       int UnitNum[]=new int[4];
+       //初始化
+       int i=0;
+       for(i=0;i<4;i++){
+           UnitNum[i]=0;
+       }
+       //数目最多的兵种和第二多的兵种 ，-1表示尚未统计，而 0表示农民 1:light 2:ranged 3:hearvt
+       int largestUnitID=-1;
+       int secondUnitID=-1;
+       //统计数目
+       for(Unit u : pgs.getUnits()){
+          if(u!=null && u.getPlayer()>=0 && u.getPlayer()!=p.getID() && u.getType().canAttack){
+              if(u.getType()==workerType){
+                  UnitNum[0]++;
+              }else if(u.getType()==lightType){
+                  UnitNum[1]++;
+              }else if(u.getType()==rangedType){
+                  UnitNum[2]++;
+              }else if(u.getType()==heavyType){
+                  UnitNum[3]++;
+              }
+          }
+       }
+       //折换worker的数目
+       UnitNum[0]/=workerValue;
+       int maxNum=0;
+       int secondNum=0;
+       //数量小直接暴力统计了..
+       for(i=0;i<4;i++){
+           if(largestUnitID!=-1 && UnitNum[i]>maxNum){
+               largestUnitID=i;
+               maxNum=UnitNum[i];
+           }else if(largestUnitID==-1){
+               largestUnitID=i;
+               maxNum=UnitNum[i];
+           }
+       }
+       for(i=0;i<4;i++){
+           if(i!=largestUnitID){
+               if(secondUnitID!=-1 && UnitNum[i]>secondNum){
+               secondUnitID=i;
+               secondNum=UnitNum[i];
+                }else if(secondUnitID==-1){
+                    secondUnitID=i;
+                    secondNum=UnitNum[i];
+                }  
+           }
+       }
+          
+       //判断主力兵种
+       //output: 一个int数组，int[0] 0:主力是worker 1主力是light 2主力是ranged 3主力是 heavy 4混合兵种  int[1]:如果不是混合兵种的话，该值为0，否则该值为混合的类型 1： WL 2: WR 3:WH  4：LR 5 LH 6 RH ,如果有任意一个值为-1的话说明返回值有问题
+       if(largestUnitID==-1 || secondUnitID==-1){
+            MajorUnitType[0]=-1;
+           MajorUnitType[1]=-1;
+           System.out.println("判断主力兵种出错1");
+           return MajorUnitType;
+       }
+       if(maxNum-secondNum >NumThreshold ){
+           MajorUnitType[0]=largestUnitID;
+           MajorUnitType[1]=0;
+       }else{
+          MajorUnitType[0]=4;
+          int tempFlag = (largestUnitID+1)*(secondUnitID+1); //加以相乘，主要为了方便判断, 由上面largestUnitID!=secondUnitID
+                switch(tempFlag){
+                    case 2 :   MajorUnitType[1]=1;break;  //WL
+                    case 3 :   MajorUnitType[1]=2;break;  //WR
+                    case 4 :   MajorUnitType[1]=3;break;  //WH
+                    case 6 :   MajorUnitType[1]=4;break;  //LR
+                    case 8 :   MajorUnitType[1]=5;break;  //LH
+                    case 12 :  MajorUnitType[1]=6;break;  //RH
+                    default : MajorUnitType[1]=-1;
+                }
+          }
+        return MajorUnitType;
     }
     
     /* 
@@ -203,9 +359,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         battleMatrix[i][j] 表示 我方的i兵种战斗力之和 - 敌方的 j兵种战斗力之和
         单个兵种的战斗力公式 1+(maxd/d)*distanceLevel 注：这里没有考虑兵种的差异，而实考虑数目和距离，兵种的差异体现在之后还有一个 矩阵 maxd表示地图最大距离，而d 表示本兵种距离对方基地的距离
         */
-        int battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
-        {1 ,-3,-5,-4},{3 ,1, 2, -2},{ 5 ,-2, 1, 2},{4 ,2, -2 ,1}
-    };
+        int battleWeight[][] = m_battleWeight;//战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
         if(my_Base==null && enermy_Base!=null){    //我方没基地了 大劣势
             System.out.println("我方没基地了");
             return 0;
