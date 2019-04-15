@@ -155,6 +155,21 @@ public class MyRtsAi extends AbstractionLayerAI{
         System.out.println("我方的大小"+evlourUnits.size());
         System.out.println("敌方的大小"+enermyUnits.size());
         int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
+        int majorUnitType[] = this.evaluateEnermyMajorUnit(pgs, p, 6, 3);
+        int enermy_AD_Type=this.evaluate_AD_Tactics(pgs, p,1.2f );
+        switch(majorUnitType[0]){
+            case 0:  System.out.println("以Worker为主");break;
+            case 1:    System.out.println("以Light为主");break;
+            case 2:   System.out.println("以Ranged为主");break;
+            case 3:    System.out.println("以Heavy为主");break;
+            case 4:    System.out.println("混合兵种");break;
+            default:  System.out.println("判断主要兵种出错");
+        }
+        switch(enermy_AD_Type){
+            case 1:  System.out.println("敌方进攻");break;
+            case 0:  System.out.println("敌方防守");break;
+            default:  System.out.println("判断攻守失败");
+        }
         enermyUnits.add(enermy_Base);
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
