@@ -56,6 +56,7 @@ public class MyRtsAi extends AbstractionLayerAI{
      */
      //数据说明 如果为 -1表示对数量没有限制
      int BuildWorkersNum=0;
+     int maxBuildWorkersNum=1;
      int maxHarvestWorkersNum=2; //最多有两个农民用于采矿
      int maxOffendWorkersNum=-1; //rush农民数目 -1表示无限制
      int maxHeavyNum=-1; // 重甲兵的最大数目
@@ -134,7 +135,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                     }
                         else if(u.getType()== barracksType){   //兵营
                         my_Barracks = u; 
-                    }else if(u.getType() == workerType && u.getType().canHarvest && buildWorker.size()<1&&harvestNum>0&&my_Barracks==null){
+                    }else if(u.getType() == workerType && u.getType().canHarvest && buildWorker.size()<maxBuildWorkersNum&&harvestNum>0&&my_Barracks==null){
                         buildWorker.add(u);
                     }
                     else if( u.getType() == workerType && u.getType().canHarvest && harvestNum< maxHarvestWorkersNum+1){   //收获单位
@@ -177,7 +178,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true, 1);
         this.baseBehavior(my_Base, p, gs, 1);
         // 使用战略
-        this.rushTactics(gs, player, "Light", my_Barracks, warriorUnits, enermyUnits, 2, 3);
+        this.rushTactics(gs, player, "Light", my_Barracks, warriorUnits, enermyUnits, 2, 4);
         
         switch(battleState){
             case 0: System.out.println("我方大劣势");break;
@@ -498,7 +499,96 @@ public class MyRtsAi extends AbstractionLayerAI{
           
           
     }
-     public void baseBehavior(Unit u, Player p, GameState gs,int trainType) {
+
+    /*
+    gs 和 Player同之前
+    input :
+    rushType:进攻策略 ，有 worker rush, heavy rush , light rush 和 range rush
+    Unit trainBuilding 用来训练的单位,如果是worker rush就选择 base ,如果是 非worker rush 就选择 兵营，如果不选择训练 就 null
+    ourUnits:我方的目前可用的单位(不包括农民，目前的设想是，这些单位是用于进攻的单位）
+    enermyUnits: 敌方的单位
+    rushTarget: 进攻目标 1是进攻基地，2进攻非采矿单位
+    rushLevel : 进攻程度  1：轻微进攻（选 0.5倍兵力进攻） 2：强势进攻（选0.75倍兵力进攻） 3：全力进攻（所有的兵力都进攻）
+    */
+    public void rushTactics(GameState gs, int player, String rushType,Unit trainBuilding,List<Unit>ourUnits, List<Unit> enermyUnits, int rushTarget, int rushLevel)
+    {   
+        PhysicalGameState pgs=gs.getPhysicalGameState();
+        Player p=gs.getPlayer(player);
+        List<Unit> warriorUnits = new ArrayList<>(); //主进攻单位
+        List<Unit> defendUnits = new ArrayList<>(); //防御单位
+        List<Unit> otherAttackUnits = new ArrayList<>(); //非主进攻单位
+        int warriorNum=0;    //当前进攻数目
+        int maxWarriorNum;  //最大进攻数目，由rushlevel决定
+        maxWarriorNum= (ourUnits.size()/4)*(rushLevel);
+        //根据rushType训练相应的单位,以及挑选相应的主进攻队伍,次进攻队伍,以及防御队伍
+        for(Unit u:ourUnits){
+           if(u.getType() == m_utt.getUnitType(rushType)){
+                //有rushlevel决定，如果数目达到进攻上限，剩下的队伍转为防守
+                if(warriorNum <= maxWarriorNum){    
+                    warriorUnits.add(u);
+                    warriorNum++;
+                 }
+                else{
+                     defendUnits.add(u);
+                }
+            }
+            else{
+                if(warriorNum<=maxWarriorNum){
+                    otherAttackUnits.add(u);
+                    warriorNum++;
+                }
+                else{
+                    defendUnits.add(u);
+                }
+            }
+        }
+         //训练相应的rush单位
+         if(trainBuilding!=null){
+             if(trainBuilding.getType()==baseType){
+                 this.baseBehavior(trainBuilding, p, gs, 2);
+             }else if(trainBuilding.getType()==barracksType){
+                 this.barracksBehavior(trainBuilding, p, gs, rushType);
+             }
+         }
+         //对敌方单位进行分类
+         Unit enermyBase=null;
+         List<Unit> e_NoBaseUnits=new ArrayList<>();
+         for(Unit u: enermyUnits){
+             if(u!=null){
+                 if(u.getType()==m_utt.getUnitType("Base")){
+                     enermyBase=u;
+                 }
+                 else {
+                     e_NoBaseUnits.add(u);
+                 }
+             }
+         }
+         List<Unit> targetUnits= new ArrayList<>();
+         if(rushTarget==1 && enermyBase!=null){
+             targetUnits.add(enermyBase);
+         }else if(rushTarget==2 && e_NoBaseUnits.size()>=3){
+              // System.out.println("##");
+              //System.out.println(e_NoBaseUnits.size());
+              for(Unit target:e_NoBaseUnits){
+                  targetUnits.add(target);
+              }
+         }else{
+             targetUnits=enermyUnits;
+         }
+         
+         //主进攻部队进攻
+         for(Unit warrior:warriorUnits){
+             attackBehavior(warrior,p,gs); 
+         }
+         //次进攻部队进攻
+         for(Unit warrior:otherAttackUnits){
+             attackBehavior(warrior,p,gs);
+         }
+         for(Unit warrior:defendUnits){
+             defenceBehavior(warrior,p,gs);
+         }
+    }
+    public void baseBehavior(Unit u, Player p, GameState gs,int trainType) {
          //先统计目前战场上的农民的数目
         PhysicalGameState pgs=gs.getPhysicalGameState();
         int allWorkers=0;
@@ -661,26 +751,57 @@ public class MyRtsAi extends AbstractionLayerAI{
             }
         }
     }
-    /*
-    /*获取八个方向的偏移量偏移大小为d
-        输入  i:偏移方向 0到7 0表示正上方，然后顺时针旋转
-             d:偏移大小
-        输出：偏移数组 （x,y)
-    
-    */
-    public int[] getOffset(int i,int d){
-        int offset[] =new int[2];
-        switch(i){
-            case 0: offset[0]=-d; offset[1]=0; return offset;
-            case 1: offset[0]=-d; offset[1]=d; return offset;
-            case 2: offset[0]=0; offset[1]=d; return offset;
-            case 3: offset[0]=d; offset[1]=d; return offset;
-            case 4: offset[0]=d; offset[1]=0; return offset;
-            case 5: offset[0]=d; offset[1]=-d; return offset;
-            case 6: offset[0]=0; offset[1]=-d; return offset;
-            case 7: offset[0]=-d; offset[1]=-d; return offset;
-            default:  offset[0]=0; offset[1]=0; return offset;
+    //进攻
+    public void attackBehavior(Unit u,Player p,GameState gs)
+    {
+        PhysicalGameState pgs = gs.getPhysicalGameState();
+        Unit closestEnemy = null;
+        int closestDistance = 0;  
+        if(gs.getActionAssignment(u)==null && u.getType().canAttack)
+        {
+            for(Unit u2:pgs.getUnits()) 
+            {
+                if (u2.getPlayer()>=0 && u2.getPlayer()!=p.getID()) 
+                { 
+                    int d = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
+                    if (closestEnemy==null || closestDistance==0|| d<closestDistance) 
+                    {
+                        closestEnemy = u2;
+                        closestDistance = d;
+                    }
+                }
+            }
+            attack(u,closestEnemy);
         }
+    }    
+    public void defenceBehavior(Unit u, Player p, GameState gs) {
+        PhysicalGameState pgs = gs.getPhysicalGameState();
+        Unit closestEnemy = null;
+        Unit closestMeleeEnemy = null;
+        int closestDistance = 0;
+        int enemyDistance = 0;
+        int mybase = 0;
+        for(Unit u2:pgs.getUnits()) {
+            if (u2.getPlayer()>=0 && u2.getPlayer()!=p.getID()) { 
+                int d = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
+                if (closestEnemy==null || d<closestDistance) {
+                    closestEnemy = u2;
+                    closestDistance = d;
+                }
+            }
+            else if(u2.getPlayer()==p.getID() && u2.getType() == m_utt.getUnitType("Base"))
+            {
+                mybase = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
+            }
+        }
+        if (closestEnemy!=null && (closestDistance < pgs.getHeight()/2 || mybase < pgs.getHeight()/2)) {
+            attack(u,closestEnemy);
+        }
+        else
+        {
+            attack(u, null);
+        }
+        
     }
     //框选一定范围内的单位，参数：gs, 单位名称，左上角坐标，长，宽, 单位数目（如果为-1则框选全部单位），是否只框选没有行动的单位(没有行动，而不是没有赋与行动（默认所有都框选，如果为true就只框选没有行动的单位）
     public List<Unit> selectUnitsAround(GameState gs,int player,String unitName ,int x,int y, int width,int height,int num, boolean  noAction){
@@ -714,211 +835,25 @@ public class MyRtsAi extends AbstractionLayerAI{
         return selectUnits;
     }
     
-
-    /*
-    gs 和 Player同之前
-    input :
-    rushType:进攻策略 ，有 worker rush, heavy rush , light rush 和 range rush
-    Unit trainBuilding 用来训练的单位,如果是worker rush就选择 base ,如果是 非worker rush 就选择 兵营，如果不选择训练 就 null
-    ourUnits:我方的目前可用的单位(不包括农民，目前的设想是，这些单位是用于进攻的单位）
-    enermyUnits: 敌方的单位
-    rushTarget: 进攻目标 1是进攻基地，2进攻非采矿单位
-    rushLevel : 进攻程度  1：轻微进攻（选 0.5倍兵力进攻） 2：强势进攻（选0.75倍兵力进攻） 3：全力进攻（所有的兵力都进攻）
+    /*获取八个方向的偏移量偏移大小为d
+        输入  i:偏移方向 0到7 0表示正上方，然后顺时针旋转
+             d:偏移大小
+        输出：偏移数组 （x,y)
+    
     */
-    public void rushTactics(GameState gs, int player, String rushType,Unit trainBuilding,List<Unit>ourUnits, List<Unit> enermyUnits, int rushTarget, int rushLevel)
-    {   
-        PhysicalGameState pgs=gs.getPhysicalGameState();
-        Player p=gs.getPlayer(player);
-        List<Unit> warriorUnits = new ArrayList<>(); //主进攻单位
-        List<Unit> defendUnits = new ArrayList<>(); //防御单位
-        List<Unit> otherAttackUnits = new ArrayList<>(); //非主进攻单位
-        int warriorNum=0;    //当前进攻数目
-        int maxWarriorNum;  //最大进攻数目，由rushlevel决定
-        maxWarriorNum= (ourUnits.size()/4)*(1+rushLevel);
-        //根据rushType训练相应的单位,以及挑选相应的主进攻队伍,次进攻队伍,以及防御队伍
-        for(Unit u:ourUnits){
-           if(u.getType() == m_utt.getUnitType(rushType)){
-                //有rushlevel决定，如果数目达到进攻上限，剩下的队伍转为防守
-                if(warriorNum <= maxWarriorNum){    
-                    warriorUnits.add(u);
-                    warriorNum++;
-                 }
-                else{
-                     defendUnits.add(u);
-                }
-            }
-            else{
-                if(warriorNum<=maxWarriorNum){
-                    otherAttackUnits.add(u);
-                    warriorNum++;
-                }
-                else{
-                    defendUnits.add(u);
-                }
-            }
-          }
-          //训练相应的rush单位
-          if(trainBuilding!=null){
-              if(trainBuilding.getType()==baseType){
-                  this.baseBehavior(trainBuilding, p, gs, 2);
-              }else if(trainBuilding.getType()==barracksType){
-                  this.barracksBehavior(trainBuilding, p, gs, rushType);
-              }
-          }
-           //对敌方单位进行分类
-          Unit enermyBase=null;
-          List<Unit> e_NoBaseUnits=new ArrayList<>();
-          for(Unit u: enermyUnits){
-              if(u!=null){
-                if(u.getType()==m_utt.getUnitType("Base")){
-                    enermyBase=u;
-                }
-                else {
-                    e_NoBaseUnits.add(u);
-                }
-              }
-          }
-          /*Integer s = new Random().nextInt(enermyUnits.size());
-          for(Unit warrior: warriorUnits){
-              if(gs.getActionAssignment(warrior)==null && warrior.getType().canAttack){
-                  Unit target= enermyUnits.get(s);
-                  if(target==null){
-                      break;
-                  }
-                  else{
-                      attack(warrior,target);
-                  }
-              }
-          }*/
-          List<Unit> targetUnits= new ArrayList<>();
-          if(rushTarget==1 && enermyBase!=null){
-              targetUnits.add(enermyBase);
-          }else if(rushTarget==2 && e_NoBaseUnits.size()>=3){
-             // System.out.println("##");
-              //System.out.println(e_NoBaseUnits.size());
-              for(Unit target:e_NoBaseUnits){
-                  targetUnits.add(target);
-              }
-          }else{
-              targetUnits=enermyUnits;
-          }
-         
-          //主进攻部队进攻
-          for(Unit warrior:warriorUnits){
-              Unit closestEnemy = null;
-              int closestDistance = 0;  
-              if(gs.getActionAssignment(warrior)==null && warrior.getType().canAttack)
-              {
-                  for(Unit u2:targetUnits) 
-                  {
-                      if(u2!=null)
-                      {
-                        if (u2.getPlayer()>=0 && u2.getPlayer()!=p.getID()) 
-                        { 
-                            int d = Math.abs(u2.getX() - warrior.getX()) + Math.abs(u2.getY() - warrior.getY());
-                            if (closestEnemy==null ||closestDistance==0|| d<closestDistance)   //条件..
-                            {
-                                closestEnemy = u2;
-                                closestDistance = d;
-                            }
-                        }
-                      }
-                  }
-                 
-                  attack(warrior,closestEnemy);
-              }
-          }
-          //次进攻部队进攻
-         for(Unit warrior:otherAttackUnits){
-              Unit closestEnemy = null;
-              int closestDistance = 0;  
-              if(gs.getActionAssignment(warrior)==null && warrior.getType().canAttack)
-              {
-                  for(Unit u2:pgs.getUnits()) 
-                  {
-                      if (u2.getPlayer()>=0 && u2.getPlayer()!=p.getID()) 
-                      { 
-                          int d = Math.abs(u2.getX() - warrior.getX()) + Math.abs(u2.getY() - warrior.getY());
-                          if (closestEnemy==null || closestDistance==0|| d<closestDistance) 
-                          {
-                              closestEnemy = u2;
-                              closestDistance = d;
-                          }
-                      }
-                  }
-                  attack(warrior,closestEnemy);
-              }
-          }
-    }    
-    public void defenceBehavior(Unit u, Player p, GameState gs) {
-        PhysicalGameState pgs = gs.getPhysicalGameState();
-        Unit closestEnemy = null;
-        Unit closestMeleeEnemy = null;
-        int closestDistance = 0;
-        int enemyDistance = 0;
-        int mybase = 0;
-        for(Unit u2:pgs.getUnits()) {
-            if (u2.getPlayer()>=0 && u2.getPlayer()!=p.getID()) { 
-                int d = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
-                if (closestEnemy==null || d<closestDistance) {
-                    closestEnemy = u2;
-                    closestDistance = d;
-                }
-            }
-            else if(u2.getPlayer()==p.getID() && u2.getType() == m_utt.getUnitType("Base"))
-            {
-                mybase = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
-            }
+    public int[] getOffset(int i,int d){
+        int offset[] =new int[2];
+        switch(i){
+            case 0: offset[0]=-d; offset[1]=0; return offset;
+            case 1: offset[0]=-d; offset[1]=d; return offset;
+            case 2: offset[0]=0; offset[1]=d; return offset;
+            case 3: offset[0]=d; offset[1]=d; return offset;
+            case 4: offset[0]=d; offset[1]=0; return offset;
+            case 5: offset[0]=d; offset[1]=-d; return offset;
+            case 6: offset[0]=0; offset[1]=-d; return offset;
+            case 7: offset[0]=-d; offset[1]=-d; return offset;
+            default:  offset[0]=0; offset[1]=0; return offset;
         }
-        if (closestEnemy!=null && (closestDistance < pgs.getHeight()/2 || mybase < pgs.getHeight()/2)) {
-            attack(u,closestEnemy);
-        }
-        else
-        {
-            attack(u, null);
-        }
-        
-    }
-    /*
-    gs 和 Player同之前
-    input :
-    rushType:防守策略 ，有 worker rush, heavy rush , light rush 和 range rush
-    ourUnits:我方的目前可用的单位(不包括农民）
-    enermyUnits: 敌方的单位
-    还需要补充建兵营，以及判断对面情形选择防守方案
-    */
-    public void defenceTactics(GameState gs, int player, String rushType,List<Unit>ourUnits, List<Unit> enermyUnits)
-    {   
-        PhysicalGameState pgs=gs.getPhysicalGameState();
-        Player p=gs.getPlayer(player);
-        List<Unit> warriorUnits = new ArrayList<>(); //主进攻单位
-        List<Unit> defendUnits = new ArrayList<>(); //防御单位
-        List<Unit> otherAttackUnits = new ArrayList<>(); //非主进攻单位
-        Unit m_Barracks= null;  //我方的兵营
-        //根据rushType训练相应的单位,以及挑选相应的进攻队伍
-        for(Unit u:ourUnits){
-            defendUnits.add(u);
-        }
-          for(Unit u:defendUnits)defenceBehavior(u,p,gs);
-          //训练rush的单位
-          //this.baseBehavior(m_Barracks,p, pgs, rushType);
-          //对地方单位进行分类
-          Unit enermyBase;
-          List<Unit> e_NoHarvestWorkers=new ArrayList<>();
-          List<Unit> e_HarvestWorkers=new ArrayList<>();
-          for(Unit u: enermyUnits){
-              if(u.getType()==m_utt.getUnitType("Base")){
-                  enermyBase=u;
-              }
-              else{
-                  if(gs.getUnitAction(u).getType()==4 || gs.getUnitAction(u).getType()==3){
-                      e_HarvestWorkers.add(u);
-                  }
-                  else{
-                      e_NoHarvestWorkers.add(u);
-                  }
-              }
-          }
     }
     public List<ParameterSpecification> getParameters()
     {

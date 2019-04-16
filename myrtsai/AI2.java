@@ -56,7 +56,7 @@ public class AI2 extends AbstractionLayerAI{
      */
      //数据说明 如果为 -1表示对数量没有限制
      int maxHarvestWorkersNum=2; //最多有两个农民用于采矿
-     int maxBuildWorkersNum=1;
+     int maxBuildWorkersNum=0;
      int maxOffendWorkersNum=-1; //rush农民数目 -1表示无限制
      int maxHeavyNum=-1; // 重甲兵的最大数目
      int maxLightNum=-1;  //轻甲兵的最大数目
@@ -359,7 +359,7 @@ public class AI2 extends AbstractionLayerAI{
                 // build a barracks:
                 if (p.getResources() >= barracksType.cost + resourcesUsed) {
                     Unit u = builedWorkers.remove(0);
-                    buildIfNotAlreadyBuilding(u,barracksType,13,16,reservedPositions,p,pgs);
+                    buildIfNotAlreadyBuilding(u,barracksType,3,1,reservedPositions,p,pgs);
                     resourcesUsed += barracksType.cost;
                 }
             }
