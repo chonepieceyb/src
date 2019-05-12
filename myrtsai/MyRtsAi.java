@@ -73,6 +73,7 @@ public class MyRtsAi extends AbstractionLayerAI{
      int m_AD_weight_V2[][]={      //我方在右下角的时候..
          { 1,2},{2,4}
      };
+
     public MyRtsAi(UnitTypeTable a_utt) {
        this(a_utt, new AStarPathFinding());
     }
@@ -81,13 +82,20 @@ public class MyRtsAi extends AbstractionLayerAI{
         reset(a_utt);
     }
     
-     public AI clone() {
+    public int train()
+    {
+        Qlearning myQ= new Qlearning(10,50,0.5,0.3,".\\QMatrix.txt",".\\rewardMatrix.txt");
+        myQ.learning(1, true);
+        return 0;
+    }
+    
+    public AI clone() {
         return new MyRtsAi(m_utt,pf);
     }
-     public void reset() {
+    public void reset() {
           super.reset();
      }
-     public void reset(UnitTypeTable a_utt) {
+    public void reset(UnitTypeTable a_utt) {
         m_utt=a_utt;
         workerType = m_utt.getUnitType("Worker");
         baseType = m_utt.getUnitType("Base");
@@ -141,8 +149,9 @@ public class MyRtsAi extends AbstractionLayerAI{
                     else if( u.getType() == workerType && u.getType().canHarvest && harvestNum< maxHarvestWorkersNum+1){   //收获单位
                         harvestWorkers.add(u);
                         harvestNum++;
-                    }else if (u.getType().canAttack){     //可作战单位
+                    }else if(u.getType().canAttack){     //可作战单位
                         warriorUnits.add(u);
+                        System.out.println(warriorUnits.size());
                     }
                 }else{      //敌方单位
                     if(u.getType() == baseType){
@@ -175,10 +184,10 @@ public class MyRtsAi extends AbstractionLayerAI{
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
         //农民建筑和收获
-        this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true, 1);
+        this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true,1,4,2);
         this.baseBehavior(my_Base, p, gs, 1);
         // 使用战略
-        this.rushTactics(gs, player, "Light", my_Barracks, warriorUnits, enermyUnits, 2, 4);
+        this.rushTactics(gs, player, "Ranged", my_Barracks, warriorUnits, enermyUnits, 2,0);
         
         switch(battleState){
             case 0: System.out.println("我方大劣势");break;
@@ -508,7 +517,7 @@ public class MyRtsAi extends AbstractionLayerAI{
     ourUnits:我方的目前可用的单位(不包括农民，目前的设想是，这些单位是用于进攻的单位）
     enermyUnits: 敌方的单位
     rushTarget: 进攻目标 1是进攻基地，2进攻非采矿单位
-    rushLevel : 进攻程度  1：轻微进攻（选 0.5倍兵力进攻） 2：强势进攻（选0.75倍兵力进攻） 3：全力进攻（所有的兵力都进攻）
+    rushLevel : 进攻程度 0：防守   1：少许进攻  2：半数进攻（选 0.5倍兵力进攻） 3：强势进攻（选0.75倍兵力进攻） 4：全力进攻（所有的兵力都进攻）
     */
     public void rushTactics(GameState gs, int player, String rushType,Unit trainBuilding,List<Unit>ourUnits, List<Unit> enermyUnits, int rushTarget, int rushLevel)
     {   
@@ -519,21 +528,24 @@ public class MyRtsAi extends AbstractionLayerAI{
         List<Unit> otherAttackUnits = new ArrayList<>(); //非主进攻单位
         int warriorNum=0;    //当前进攻数目
         int maxWarriorNum;  //最大进攻数目，由rushlevel决定
-        maxWarriorNum= (ourUnits.size()/4)*(rushLevel);
+        maxWarriorNum= (ourUnits.size()/4)*(rushLevel);//+ourUnits.size()%4;
+        System.out.println("ourUnits:"+ourUnits.size());
+        System.out.println("maxWarriorNum:"+ maxWarriorNum);
         //根据rushType训练相应的单位,以及挑选相应的主进攻队伍,次进攻队伍,以及防御队伍
         for(Unit u:ourUnits){
            if(u.getType() == m_utt.getUnitType(rushType)){
                 //有rushlevel决定，如果数目达到进攻上限，剩下的队伍转为防守
-                if(warriorNum <= maxWarriorNum){    
+                if(warriorNum <maxWarriorNum){    
                     warriorUnits.add(u);
                     warriorNum++;
                  }
                 else{
                      defendUnits.add(u);
                 }
+                
             }
             else{
-                if(warriorNum<=maxWarriorNum){
+                if(warriorNum<maxWarriorNum){
                     otherAttackUnits.add(u);
                     warriorNum++;
                 }
@@ -688,9 +700,10 @@ public class MyRtsAi extends AbstractionLayerAI{
     附加参数 ： isBuild 是否增加建筑命令，true建建筑 ,false 不建
     baseNum :我方允许的基地数目
     barracksNum :我方允许的兵营的数目
+    barrack_x,barrack_y:兵营坐标
     input: 
     */
-    public void workersBehavior(List<Unit>harvestWorkers,List<Unit> workers, Player p, PhysicalGameState pgs,boolean isBuild,int barracksNum) {
+    public void workersBehavior(List<Unit>harvestWorkers,List<Unit> workers, Player p, PhysicalGameState pgs,boolean isBuild,int barracksNum,int barrack_x,int barrack_y) {
         int nbarracks = 0;
 
         int resourcesUsed = 0;
@@ -710,7 +723,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                 // build a barracks:
                 if (p.getResources() >= barracksType.cost + resourcesUsed && !freeWorkers.isEmpty()) {
                     Unit u = workers.remove(0);
-                    buildIfNotAlreadyBuilding(u,barracksType,3,1,reservedPositions,p,pgs);
+                    buildIfNotAlreadyBuilding(u,barracksType,barrack_x,barrack_y,reservedPositions,p,pgs);
                     resourcesUsed += barracksType.cost;
                 }
             }
@@ -794,7 +807,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                 mybase = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
             }
         }
-        if (closestEnemy!=null && (closestDistance < pgs.getHeight()/2 || mybase < pgs.getHeight()/2)) {
+        if (closestEnemy!=null && (closestDistance < pgs.getHeight()/4 || mybase < pgs.getHeight()/4)) {
             attack(u,closestEnemy);
         }
         else
