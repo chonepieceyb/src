@@ -12,6 +12,11 @@ import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import static java.lang.Math.random;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 /**
  *
@@ -64,11 +69,28 @@ public class Qlearning {
                   for(i=0;i<actionNum;i++){
                       for(j=0;j<stateNum;j++){
                           QMatrix[i][j] = 0;
-                          rewardMatrix[i][j]=10;
                       }
                   }
+                  //电脑写reward
+                  //这里是按章50个state 进行赋值，具体情况要有所改动
+                  for(i=0;i<actionNum;i++){
+                      for(j=0;j<stateNum;j++){
+                         switch(j/10){
+                             case 0: rewardMatrix[i][j] = -100;break;
+                             case 1: rewardMatrix[i][j] = -50;break;
+                             case 2: rewardMatrix[i][j] = 0;break;
+                             case 3: rewardMatrix[i][j] = 50;break;
+                             case 4: rewardMatrix[i][j] =100;break;
+                             default: rewardMatrix[i][j] = 0;
+                         }
+                      }
+                  }
+                  for(j=0;j<stateNum;j++){
+                       rewardMatrix[1][j]=100;
+                       rewardMatrix[5][j]=100;
+                  }
                   //写入数据
-                  writeToFile();
+                  writeToFile(true);
             }else{
                 //从文件中读取数据  
                 System.out.println("读取数据");
@@ -119,31 +141,46 @@ public class Qlearning {
         }
  
     }
-    private void writeToFile(){
-      
+    
+    //input： bool 是否写reward矩阵
+    private void writeToFile(boolean isWriteReward){
+      //保留两位有效小鼠
+     DecimalFormat f = new DecimalFormat("#.00");
+      System.out.println("开始写Q矩阵");
       try{
           BufferedWriter QWriter = new BufferedWriter(new FileWriter(QMatrixFile));
-          BufferedWriter RWriter = new BufferedWriter(new FileWriter(rewardFile));
-          //开始逐个写入数据
+          //开始写Q矩阵
           int i,j;
           for(i=0;i<actionNum;i++){
               for(j=0;j<stateNum;j++){
                   //写Q
-                  QWriter.write(Double.toString(QMatrix[i][j]));
+                  QWriter.write( f.format(QMatrix[i][j]));
                   QWriter.write(" ");
-                  RWriter.write(Double.toString(rewardMatrix[i][j]));
-                  RWriter.write(" ");
               }
               //换行
               QWriter.newLine();
-              RWriter.newLine();
           }
           //将流压入文件
           QWriter.flush();
-          RWriter.flush();
           //关闭流
           QWriter.close();
-          RWriter.close();
+          //开始写R矩阵
+          if(isWriteReward){
+             BufferedWriter RWriter = new BufferedWriter(new FileWriter(rewardFile));
+             for(i=0;i<actionNum;i++){
+                for(j=0;j<stateNum;j++){
+                    //写R
+                    RWriter.write(f.format(rewardMatrix[i][j]));
+                    RWriter.write(" ");
+                }
+                //换行
+                RWriter.newLine();
+              }
+              //将流压入文件
+              RWriter.flush();
+               //关闭流
+              RWriter.close();
+          }  
       }catch(Exception e){
           e.printStackTrace();
       }
@@ -156,6 +193,7 @@ public class Qlearning {
     output : int 返回需要采取的行动, -1表示决策出错
     */
     public int makeDecision(int state){
+        List<Integer> maxNumPoses = new ArrayList<>();
         if(state>=stateNum || state<0){
             return -1;
         }
@@ -164,13 +202,18 @@ public class Qlearning {
         for(i=0;i<actionNum;i++){    //如果有多个Q值相同的话取第一个
            if(i==0){
                action=i;
+               maxNumPoses.add(i);
            }else{
-               if(QMatrix[i][state]>QMatrix[action][state]){
-                   action=i;
+               if(QMatrix[i][state]>=QMatrix[action][state]){
+                   maxNumPoses.add(i);
                }
            }
         }
-        return action;
+        //从相同的值随机选一个
+        Random r = new Random();
+        System.out.println(maxNumPoses.size());
+        int maxPos = 0+r.nextInt(maxNumPoses.size());
+        return maxNumPoses.get(maxPos);
     }
     /*
     这个函数 根据 statelast actionlast 和当前的state来更新QMatrix
@@ -184,9 +227,22 @@ public class Qlearning {
         //将Q_n-1 更新成为 Q_n
         if(action!=-1){    //决策有效
             QMatrix[actionLast][stateLast] =(1-alpha)*QMatrix[actionLast][stateLast]+ alpha*( rewardMatrix[actionLast][stateLast]+ r* QMatrix[action][state]); 
+            System.out.println("更新训练"+actionLast+" "+stateLast+" "+ QMatrix[actionLast][stateLast] );
         }
     }
     
+    //update函数重载，采用动态的方式获取reward,但是reward需要从外部给
+    public void updateQMatrix(int state,int reward){
+        //根据当前state获取上一步在state下决策的最佳action
+        int action=-1;
+        //注意这时候的QMatrix是 Q_n-1
+        action=makeDecision(state);
+        //将Q_n-1 更新成为 Q_n
+        if(action!=-1){    //决策有效
+            QMatrix[actionLast][stateLast] =(1-alpha)*QMatrix[actionLast][stateLast]+ alpha*(  reward+ r* QMatrix[action][state]); 
+            System.out.println("更新训练"+actionLast+" "+stateLast+" "+ QMatrix[actionLast][stateLast] );
+        }
+    }
     /*
     Qlearning 学习函数
     inputt : state 当前的状态
@@ -195,24 +251,27 @@ public class Qlearning {
     */
     public int learning( int state,boolean isWrite){
     //先根据当前的state更新上一步决策 的Q矩阵
-    // 如果不是第一册 ，由于第一次决策没有上一次，所以不进行更新
+    // 如果不是第一次 ，由于第一次决策没有上一次，所以不进行更新
        int actionNow=-1;  //当前状态下的最佳决策
        if(actionLast!=-1 && stateLast!=-1){
            //先更新
            updateQMatrix(state);
-       }else{
+        }else{
            //否则直接决策
            actionNow= makeDecision(state);
            //将当前的状态和决策保存下来，以便于下一次决策前进行Q矩阵的更新
            actionLast=actionNow;
            stateLast=state;
+           writeToFile(false);
            return actionNow;
        }
        //更新之后进行决策
        actionNow =  makeDecision(state);
+       actionLast=actionNow;
+       stateLast=state;
        //根据参数决定是否写入文件
        if(isWrite){
-           writeToFile();
+           writeToFile(false);
        }
        //返回action
        return actionNow;
@@ -232,6 +291,43 @@ public class Qlearning {
        }
    }
    
+    //对learning 函数的重载，采用外部的reward而不是内部的reward矩阵进行学习
+    /*
+    Qlearning 学习函数
+    inputt : state 当前的状态
+             reward 外部的r
+             isWrite : 是否将更新后的Q矩阵写入到文件中 
+    output: 在当前状态下采取的action
+    */
+    public int learning( int state,int reward,boolean isWrite){
+    //先根据当前的state更新上一步决策 的Q矩阵
+    // 如果不是第一次 ，由于第一次决策没有上一次，所以不进行更新
+       int actionNow=-1;  //当前状态下的最佳决策
+       if(actionLast!=-1 && stateLast!=-1){
+           //先更新
+           updateQMatrix(state,reward);
+        }else{
+           //否则直接决策
+           actionNow= makeDecision(state);
+           //将当前的状态和决策保存下来，以便于下一次决策前进行Q矩阵的更新
+           actionLast=actionNow;
+           stateLast=state;
+           writeToFile(false);
+           return actionNow;
+       }
+       //更新之后进行决策
+       actionNow =  makeDecision(state);
+       actionLast=actionNow;
+       stateLast=state;
+       //根据参数决定是否写入文件
+       if(isWrite){
+           writeToFile(false);
+       }
+       //返回action
+       return actionNow;
+    }
+   
+   
    //打印R矩阵的函数
    public void printRewardMatrix(){
        if(rewardMatrix==null){
@@ -245,6 +341,12 @@ public class Qlearning {
            System.out.print("\n");
        }
    }
+   public void printLastS_A(){
+       System.out.println("lastState"+ stateLast);
+         System.out.println("lastAction"+ actionLast);
+   }
+   
+
     //测试主函数
    public static void main(String[] agrs){
          Qlearning myQ= new Qlearning(10,50,0.5,0.3,".\\QMatrix.txt",".\\rewardMatrix.txt");

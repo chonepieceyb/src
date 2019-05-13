@@ -9,6 +9,7 @@ import ai.*;
 import ai.abstraction.HeavyRush;
 import ai.abstraction.LightDefense;
 import ai.abstraction.LightRush;
+import ai.abstraction.WorkerDefense;
 import ai.abstraction.WorkerRush;
 import ai.abstraction.WorkerRushPlusPlus;
 import ai.abstraction.cRush.CRush_V1;

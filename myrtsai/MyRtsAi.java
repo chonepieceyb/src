@@ -29,6 +29,7 @@ import rts.PlayerAction;
 import rts.units.UnitTypeTable;
 import rts.units.Unit;
 import rts.units.UnitType;
+import myrtsai.Qlearning;
 /**
  *
  * @author msi-
@@ -73,20 +74,36 @@ public class MyRtsAi extends AbstractionLayerAI{
      int m_AD_weight_V2[][]={      //我方在右下角的时候..
          { 1,2},{2,4}
      };
-
+    
+    //和Qlearning 有关的参数
+    Qlearning myQlearning = null;
+    double alpha= 0.5;
+    double r = 0.6;
+    String QMatrixFileName = "QMatrix.txt";
+    String rewardMatrixFileName = "rewardMatrix.txt";
+    int timeStep=60;
+    int lastTime=0;
+    int action;
+    int actionNum=8;
+    int stateNum=50;
+    //和getState有关的数组
+    // 0-50： 大劣势-大优势
+    int offsetSituation[] = {0,10,20,30,40};
+    // 0 防守 5 进攻
+    int offsetD_A[]={0,5};
+    // 0-4 worker light ranged hearv 混合
+    int offsetMajor[]={0,1,2,3,4};
+    
+    //和action 有关的数组
+    int actionA_D[]={4,4,4,4,0,0,0,0};
+    String actionMajor[]={"Worker","Light","Ranged","Heavy","Worker","Light","Ranged","Heavy"};
+    
     public MyRtsAi(UnitTypeTable a_utt) {
        this(a_utt, new AStarPathFinding());
     }
     public MyRtsAi(UnitTypeTable a_utt,PathFinding a_pf) {
         super(a_pf);
         reset(a_utt);
-    }
-    
-    public int train()
-    {
-        Qlearning myQ= new Qlearning(10,50,0.5,0.3,".\\QMatrix.txt",".\\rewardMatrix.txt");
-        myQ.learning(1, true);
-        return 0;
     }
     
     public AI clone() {
@@ -96,6 +113,7 @@ public class MyRtsAi extends AbstractionLayerAI{
           super.reset();
      }
     public void reset(UnitTypeTable a_utt) {
+        myQlearning =new Qlearning(actionNum,stateNum,alpha,r,".\\"+QMatrixFileName,".\\"+rewardMatrixFileName);
         m_utt=a_utt;
         workerType = m_utt.getUnitType("Worker");
         baseType = m_utt.getUnitType("Base");
@@ -106,9 +124,9 @@ public class MyRtsAi extends AbstractionLayerAI{
     }
 
     public PlayerAction getAction(int player, GameState gs) {
-        
         PhysicalGameState pgs = gs.getPhysicalGameState();
         Player p = gs.getPlayer(player);
+        System.out.println("time"+gs.getTime());
         //获取战场的信息
         int harvestNum=0;//
         List<Unit> harvestWorkers = new ArrayList<>();
@@ -162,11 +180,41 @@ public class MyRtsAi extends AbstractionLayerAI{
                 }
             }
         }
+       
         System.out.println("我方的大小"+evlourUnits.size());
         System.out.println("敌方的大小"+enermyUnits.size());
         int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
         int majorUnitType[] = this.evaluateEnermyMajorUnit(pgs, p, 6, 3);
         int enermy_AD_Type=this.evaluate_AD_Tactics(pgs, p,1.2f );
+        //开始Q-learning 
+        //获取state
+        int state=0;
+        if(majorUnitType[0]==-1 || battleState==-1|| enermy_AD_Type==-1){
+            state=20;
+        }else{
+           state =  this.offsetSituation[battleState] + this.offsetD_A[enermy_AD_Type] +this.offsetMajor[majorUnitType[0]];
+        }
+        System.out.println("当前的状态"+state);
+        if(lastTime==0 || gs.getTime()-lastTime>=timeStep){
+            System.out.println("训练");
+            action=myQlearning.learning(state, true);
+            myQlearning.printLastS_A();
+        }
+        String ourMajor=actionMajor[action];
+        int ourA_D=this.actionA_D[action];
+        
+        // 使用战略
+        if(ourMajor!="Worker"){
+             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true,1,4,2);
+              this.baseBehavior(my_Base, p, gs, 1);
+            this.rushTactics(gs, player, ourMajor, my_Barracks, warriorUnits, enermyUnits, 2,ourA_D);
+        }else{
+             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, false,1,4,2);
+              this.baseBehavior(my_Base, p, gs, 1);
+            this.rushTactics(gs, player, ourMajor, my_Base, warriorUnits, enermyUnits, 2,ourA_D);
+        }
+        
+        //辅助信息
         switch(majorUnitType[0]){
             case 0:  System.out.println("以Worker为主");break;
             case 1:    System.out.println("以Light为主");break;
@@ -184,10 +232,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
         //农民建筑和收获
-        this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true,1,4,2);
-        this.baseBehavior(my_Base, p, gs, 1);
-        // 使用战略
-        this.rushTactics(gs, player, "Ranged", my_Barracks, warriorUnits, enermyUnits, 2,0);
+     
         
         switch(battleState){
             case 0: System.out.println("我方大劣势");break;
@@ -197,7 +242,9 @@ public class MyRtsAi extends AbstractionLayerAI{
             case 4: System.out.println("我方大优势");break;
             default: System.out.println("评估出错");
         }
+           System.out.println("getActionOver\n");
         return translateActions(player, gs);
+     
     }
     
     /*
@@ -528,7 +575,10 @@ public class MyRtsAi extends AbstractionLayerAI{
         List<Unit> otherAttackUnits = new ArrayList<>(); //非主进攻单位
         int warriorNum=0;    //当前进攻数目
         int maxWarriorNum;  //最大进攻数目，由rushlevel决定
-        maxWarriorNum= (ourUnits.size()/4)*(rushLevel);//+ourUnits.size()%4;
+        if(rushLevel==0)
+            maxWarriorNum=0;
+        else
+            maxWarriorNum=ourUnits.size();
         System.out.println("ourUnits:"+ourUnits.size());
         System.out.println("maxWarriorNum:"+ maxWarriorNum);
         //根据rushType训练相应的单位,以及挑选相应的主进攻队伍,次进攻队伍,以及防御队伍
@@ -872,6 +922,6 @@ public class MyRtsAi extends AbstractionLayerAI{
     {
         return new ArrayList<>();
     }
-
+ 
     
 }
