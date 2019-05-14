@@ -9,13 +9,21 @@ import ai.*;
 import ai.abstraction.HeavyRush;
 import ai.abstraction.LightDefense;
 import ai.abstraction.LightRush;
+import ai.abstraction.RangedDefense;
+import ai.abstraction.RangedRush;
 import ai.abstraction.WorkerDefense;
 import ai.abstraction.WorkerRush;
 import ai.abstraction.WorkerRushPlusPlus;
 import ai.abstraction.cRush.CRush_V1;
 import ai.abstraction.cRush.CRush_V2;
+import ai.abstraction.partialobservability.POLightRush;
+import ai.abstraction.pathfinding.AStarPathFinding;
 import ai.abstraction.pathfinding.BFSPathFinding;
 import ai.mcts.naivemcts.NaiveMCTS;
+import ai.mcts.uct.UCT;
+import ai.montecarlo.MonteCarlo;
+import ai.montecarlo.lsi.LSI;
+import ai.portfolio.portfoliogreedysearch.PGSAI;
 import ai.scv.SCV;
 import gui.PhysicalGameStatePanel;
 import java.io.OutputStreamWriter;
@@ -35,7 +43,7 @@ import util.XMLWriter;
 public class GameVisualSimulationTest {
     public static void main(String args[]) throws Exception {
         UnitTypeTable utt = new UnitTypeTable();
-        BFSPathFinding aps= new BFSPathFinding();
+       AStarPathFinding aps= new AStarPathFinding();
         PhysicalGameState pgs = PhysicalGameState.load("maps/16x16/basesWorkers16x16.xml", utt);
 //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
@@ -45,7 +53,7 @@ public class GameVisualSimulationTest {
         boolean gameover = false;
         
         AI ai1 = new MyRtsAi(utt,aps);        
-        AI ai2 = new CRush_V1(utt,aps);
+        AI ai2 = new CRush_V1(utt);
        // AI ai2 = new RandomBiasedAI();
 
         JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);

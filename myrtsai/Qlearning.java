@@ -194,6 +194,7 @@ public class Qlearning {
     */
     public int makeDecision(int state){
         List<Integer> maxNumPoses = new ArrayList<>();
+        double maxNum=0;
         if(state>=stateNum || state<0){
             return -1;
         }
@@ -201,13 +202,17 @@ public class Qlearning {
         int action=-1;
         for(i=0;i<actionNum;i++){    //如果有多个Q值相同的话取第一个
            if(i==0){
-               action=i;
-               maxNumPoses.add(i);
+               maxNum  = QMatrix[i][state];
            }else{
-               if(QMatrix[i][state]>=QMatrix[action][state]){
-                   maxNumPoses.add(i);
+               if(QMatrix[i][state]> maxNum ){
+                  maxNum  = QMatrix[i][state];
                }
            }
+        }
+        for(i=0;i<actionNum;i++){
+            if(QMatrix[i][state]==maxNum){
+                maxNumPoses.add(i);
+            }
         }
         //从相同的值随机选一个
         Random r = new Random();

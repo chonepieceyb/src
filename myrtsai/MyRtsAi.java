@@ -81,19 +81,21 @@ public class MyRtsAi extends AbstractionLayerAI{
     double r = 0.6;
     String QMatrixFileName = "QMatrix.txt";
     String rewardMatrixFileName = "rewardMatrix.txt";
-    int timeStep=60;
+    int timeStep=100;
     int lastTime=0;
     int action;
     int actionNum=8;
-    int stateNum=50;
+    int stateNum=100;
+    int lastCombatValue=0; //上一个决策状态的战斗力，初始化为0
     //和getState有关的数组
     // 0-50： 大劣势-大优势
-    int offsetSituation[] = {0,10,20,30,40};
+   // int offsetSituation[] = {0,10,20,30,40};
+    int offsetSituation[] = {0,20,40,60,80};
     // 0 防守 5 进攻
-    int offsetD_A[]={0,5};
+    int offsetD_A[]={0,10};
     // 0-4 worker light ranged hearv 混合
-    int offsetMajor[]={0,1,2,3,4};
-    
+    //int offsetMajor[]={0,1,2,3,4};
+    int offsetMajor[]={0,1,2,3,4,5,6,7,8,9};
     //和action 有关的数组
     int actionA_D[]={4,4,4,4,0,0,0,0};
     String actionMajor[]={"Worker","Light","Ranged","Heavy","Worker","Light","Ranged","Heavy"};
@@ -138,6 +140,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         Unit my_Barracks = null;
         Unit enermy_Base = null;
         Unit evl_myBase=null; //用于评估的my_base
+        Unit enermy_Barracks=null;
         //对战场所有单位进行分类
           for(Unit u: pgs.getUnits()){
               if(u!=null ){
@@ -146,6 +149,8 @@ public class MyRtsAi extends AbstractionLayerAI{
                           evlourUnits .add(u);
                       }else if(u.getType()==baseType){
                           evl_myBase=u;
+                      }else if(u.getType()== barracksType){
+                           enermy_Barracks=u;
                       }
                   }
               }
@@ -183,33 +188,59 @@ public class MyRtsAi extends AbstractionLayerAI{
        
         System.out.println("我方的大小"+evlourUnits.size());
         System.out.println("敌方的大小"+enermyUnits.size());
-        int battleState=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
+        int battleState[]=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
         int majorUnitType[] = this.evaluateEnermyMajorUnit(pgs, p, 6, 3);
         int enermy_AD_Type=this.evaluate_AD_Tactics(pgs, p,1.2f );
         //开始Q-learning 
+        //获取majorUnitType
+        int majorUnit=-1;
+        if(majorUnitType[0]==4){
+            majorUnit=3+majorUnitType[1];
+        }else{
+            majorUnit=majorUnitType[0];
+        }
         //获取state
         int state=0;
-        if(majorUnitType[0]==-1 || battleState==-1|| enermy_AD_Type==-1){
+        if(majorUnitType[0]==-1 || battleState[0]==-1|| enermy_AD_Type==-1){
             state=20;
         }else{
-           state =  this.offsetSituation[battleState] + this.offsetD_A[enermy_AD_Type] +this.offsetMajor[majorUnitType[0]];
+           state =  this.offsetSituation[battleState[0]] + this.offsetD_A[enermy_AD_Type] +this.offsetMajor[majorUnit];
         }
+        //开局设一个单独的状态
         System.out.println("当前的状态"+state);
-        if(lastTime==0 || gs.getTime()-lastTime>=timeStep){
-            System.out.println("训练");
-            action=myQlearning.learning(state, true);
+        if(gs.getTime()==551||gs.getTime()-lastTime>=timeStep){
+            lastTime= gs.getTime();
+            System.out.println("训练 lastTime"+lastTime);
+            if(gs.getTime()>=550){
+                if(battleState[1]!=-1000){
+                     action=myQlearning.learning(state,battleState[1]-lastCombatValue, true);
+                }else{
+                     action=myQlearning.learning(state,battleState[1], true);
+                }
+            }
+            //将当前战斗力存储下来
+            System.out.println("本次的rewardv "+(battleState[1]-lastCombatValue));
+            lastCombatValue=battleState[1];
             myQlearning.printLastS_A();
+        }else if( gs.getTime()<=550){
+            this.workersBehavior(harvestWorkers,buildWorker, p, pgs,true,1,4,3);
+            if(enermy_Barracks!=null){
+             action=5;
+            }else{
+             action=0;
+            }
         }
+        
         String ourMajor=actionMajor[action];
         int ourA_D=this.actionA_D[action];
         
         // 使用战略
         if(ourMajor!="Worker"){
-             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true,1,4,2);
-              this.baseBehavior(my_Base, p, gs, 1);
+             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true,1,4,3);
+             this.baseBehavior(my_Base, p, gs, 1);
             this.rushTactics(gs, player, ourMajor, my_Barracks, warriorUnits, enermyUnits, 2,ourA_D);
         }else{
-             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, false,1,4,2);
+             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, false,1,4,3);
               this.baseBehavior(my_Base, p, gs, 1);
             this.rushTactics(gs, player, ourMajor, my_Base, warriorUnits, enermyUnits, 2,ourA_D);
         }
@@ -234,7 +265,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         //农民建筑和收获
      
         
-        switch(battleState){
+        switch(battleState[0]){
             case 0: System.out.println("我方大劣势");break;
             case 1: System.out.println("我方劣势");break;
             case 2: System.out.println("局势平衡");break;
@@ -421,28 +452,34 @@ public class MyRtsAi extends AbstractionLayerAI{
     
     /* 
     分析战场形势的函数：从两个方面进行评估（1 敌我双方各个单位数目的差值（一定考虑） 2 敌我双方单位和对方基地的距离的插值（可选择考虑的程度）暂时不考虑兵营
-    output: 一个 int 范围从 0 - 4  0:我方大劣势 1：我方劣势 2：双方均等 3：我方优势 4 我方大优势
+    output: 一个 int[0] 范围从 0 - 4  0:我方大劣势 1：我方劣势 2：双方均等 3：我方优势 4 我方大优势 , int[1]真实的战斗力
     input: gs同之前 , 
            ourUnits(我方单位）和enermyUnits(敌方单位）是评估的对象， 
            myBase 我方基地   enermyBase 敌方基地
            distanceLevel ： 敌我双方距离的影响因子，即是否将敌我双方距离对方基地的距离也纳入评估的范围  范围从 0 到 1 0是不考虑距离，1 考虑距离且程度最大
            scoreStep : 评价阈值的步长
     */
-    public int evaluateState(Unit my_Base,List<Unit> ourUnits,Unit enermy_Base, List<Unit> enermyUnits,float distanceLevel, int scoreStep){
+    public int[] evaluateState(Unit my_Base,List<Unit> ourUnits,Unit enermy_Base, List<Unit> enermyUnits,float distanceLevel, int scoreStep){
         /* 
         
         battleMatrix战斗矩阵 行、列（0:代表 worker, 1:light 2:range 3:heavy)
         battleMatrix[i][j] 表示 我方的i兵种战斗力之和 - 敌方的 j兵种战斗力之和
         单个兵种的战斗力公式 1+(maxd/d)*distanceLevel 注：这里没有考虑兵种的差异，而实考虑数目和距离，兵种的差异体现在之后还有一个 矩阵 maxd表示地图最大距离，而d 表示本兵种距离对方基地的距离
         */
+        //输出
+        int output[]={0,0};
         int battleWeight[][] = m_battleWeight;//战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
         if(my_Base==null && enermy_Base!=null){    //我方没基地了 大劣势
             System.out.println("我方没基地了");
-            return 0;
+            output[0]=0;
+            output[1]=-1000;
+            return output;
         }
         if(enermy_Base == null && my_Base!=null){   //敌方没基地了 大优势
             System.out.println("敌方没基地了");
-            return 4;
+            output[0]=4;
+            output[1]=1000;
+            return output;
         }
         if(my_Base == null && enermy_Base == null){    //敌我双方都没有基地，不考虑距离因素
             System.out.println("都没基地了");
@@ -516,7 +553,9 @@ public class MyRtsAi extends AbstractionLayerAI{
               }
           }   
           if(enermyNoZero==0){
-              return 4;
+              output[0]=4;
+              output[1]=1000;
+              return output;
           }
           for(i=0;i<4;i++){
               float myCombatI=0;
@@ -533,27 +572,33 @@ public class MyRtsAi extends AbstractionLayerAI{
                 myCombatAll+= myCombatI/ enermyNoZero;
               }
           }
-          
+         //更新output
+         output[1]=(int)myCombatAll;
          System.out.println("战力之和"+myCombatAll);
          scoreStep*=maxD;
          //评估威胁
 
          if(myCombatAll> -scoreStep && myCombatAll< scoreStep  ){
-             return 2;
+             output[0]=2;
+            // return 2;
          }else if(myCombatAll>=scoreStep&& myCombatAll<3*scoreStep){
-             return 3;
+             output[0]=3;
+           //  return 3;
          }else if(myCombatAll>=3*scoreStep){
-             return 4;
+             output[0]=4;
+           //  return 4;
          }else if(myCombatAll<=-scoreStep&& myCombatAll> -3*scoreStep){
-             return 1;
+             output[0]=1;
+           //  return 1;
          }else if(myCombatAll<=-3*scoreStep){
-             return 0;
+             output[0]=0;
+           //  return 0;
          }else{
              System.out.println("评估出现问题,认为战力相同");
-             return 2;
+           //  return 2;
          }
           
-          
+         return output;
     }
 
     /*
@@ -646,8 +691,12 @@ public class MyRtsAi extends AbstractionLayerAI{
          for(Unit warrior:otherAttackUnits){
              attackBehavior(warrior,p,gs);
          }
-         for(Unit warrior:defendUnits){
-             defenceBehavior(warrior,p,gs);
+         for(Unit warrior:defendUnits ){
+             if(gs.getTime()<=2500){
+                  defenceBehavior(warrior,p,gs);
+             }else{
+                  attackBehavior(warrior,p,gs);
+             }
          }
     }
     public void baseBehavior(Unit u, Player p, GameState gs,int trainType) {
