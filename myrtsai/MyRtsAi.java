@@ -9,6 +9,7 @@ package myrtsai;
 
 import ai.abstraction.AbstractAction;
 import ai.abstraction.AbstractionLayerAI;
+import ai.abstraction.Attack;
 import ai.abstraction.Harvest;
 import ai.abstraction.LightRush;
 import ai.abstraction.pathfinding.AStarPathFinding;
@@ -56,15 +57,19 @@ public class MyRtsAi extends AbstractionLayerAI{
      Unit enermy_base= null;
      */
      //数据说明 如果为 -1表示对数量没有限制
-     int BuildWorkersNum=0;
+    // int BuildWorkersNum=0;
+     //int HarvestWorkersNum=0;
      int maxBuildWorkersNum=1;
      int maxHarvestWorkersNum=2; //最多有两个农民用于采矿
-     int maxOffendWorkersNum=-1; //rush农民数目 -1表示无限制
+     int leastWorkersNum =3;    //最少worker的数目
+     int maxOffendWorkersNum=6; //rush农民数目 -1表示无限制
      int maxHeavyNum=-1; // 重甲兵的最大数目
      int maxLightNum=-1;  //轻甲兵的最大数目
      int maxRangedNum=-1; //远程兵的最大数目
-     int HarvestWorkersNum=0;
-     
+      List<Unit> harvestWorkers = new ArrayList<>();
+      List<Unit> buildWorkers = new ArrayList<>();
+      Unit my_Base = null;
+      Unit my_Barracks = null;
      //一些矩阵
      int m_battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
         {1 ,-3,-5,-4},{3 ,1, 2, -2},{ 5 ,-2, 1, 2},{4 ,2, -2 ,1}};
@@ -130,14 +135,51 @@ public class MyRtsAi extends AbstractionLayerAI{
         Player p = gs.getPlayer(player);
         System.out.println("time"+gs.getTime());
         //获取战场的信息
+        if(my_Base!=null && my_Base.getHitPoints()<=0){
+            my_Base = null;
+        }
+        if(my_Barracks !=null &&my_Barracks .getHitPoints()<=0){
+            my_Barracks  = null;
+        }
         int harvestNum=0;//
-        List<Unit> harvestWorkers = new ArrayList<>();
-        List<Unit> buildWorker = new ArrayList<>();
+        
+        //统计当前harvestWorkers数组里实际能工作的农名数
+        for(Unit u : harvestWorkers){
+            if(u!=null && u.getHitPoints()>0){
+                harvestNum++;
+            }
+        }
+       // List<Unit> harvestWorkers = new ArrayList<>();
+       int buildWorkersNum = 0 ;
+       boolean isBuild ;
+       if(gs.getTime()>=50){
+           isBuild = true;}
+       else{
+           isBuild=false;
+       }
+        int workersNum =0;
+        //统计农民的数目，农民数目至少为3个
+        //统计buildWorkers数据
+        for(Unit u :buildWorkers){
+            if(u!=null && u.getHitPoints()>0){
+                buildWorkersNum++;
+            }
+        }
+        if( my_Barracks !=null){
+            System.out.println("我方有兵营了，开始削减建筑工人的数目"+buildWorkersNum);
+            buildWorkers.add(null);
+            for(Unit u :buildWorkers){
+                if(u!=null && u.getHitPoints()>0){
+                 buildWorkers.remove(u);
+                 isBuild= false;
+                 buildWorkersNum--;
+                }
+            }
+        }
         List<Unit> warriorUnits = new ArrayList<>();
         List<Unit> enermyUnits = new ArrayList<>();
         List<Unit> evlourUnits = new ArrayList<>();  //用于评估的我方单位
-        Unit my_Base = null;
-        Unit my_Barracks = null;
+
         Unit enermy_Base = null;
         Unit evl_myBase=null; //用于评估的my_base
         Unit enermy_Barracks=null;
@@ -160,32 +202,41 @@ public class MyRtsAi extends AbstractionLayerAI{
                   if(u.getPlayer() == player && u.getType()==baseType){
                       evl_myBase=u;
                   }
-                  if(u.getPlayer() == player && gs.getActionAssignment(u)==null){   //我方的单位
-                    if(u.getType() == baseType){   // 基地
-                        my_Base = u;
-                    }
-                        else if(u.getType()== barracksType){   //兵营
-                        my_Barracks = u; 
-                    }else if(u.getType() == workerType && u.getType().canHarvest && buildWorker.size()<maxBuildWorkersNum&&harvestNum>0&&my_Barracks==null){
-                        buildWorker.add(u);
-                    }
-                    else if( u.getType() == workerType && u.getType().canHarvest && harvestNum< maxHarvestWorkersNum+1){   //收获单位
-                        harvestWorkers.add(u);
-                        harvestNum++;
-                    }else if(u.getType().canAttack){     //可作战单位
-                        warriorUnits.add(u);
-                        System.out.println(warriorUnits.size());
-                    }
-                }else{      //敌方单位
-                    if(u.getType() == baseType){
-                        enermy_Base =u ;
-                    }else if(u.getPlayer()>=0 && u.getPlayer()!=p.getID()){
-                        enermyUnits.add(u);
-                    }
-                }
-            }
+                  if(u.getPlayer() == player && gs.getActionAssignment(u)==null ){   //我方的单位
+                      if(u.getType() == baseType){   // 基地
+                          my_Base = u;
+                      }else if(u.getType()== barracksType){   //兵营
+                          my_Barracks = u; 
+                      }else if(u.getType() == workerType && u.getType().canHarvest ){
+                          workersNum++;
+                          if(!harvestWorkers.contains(u) && !buildWorkers.contains(u)){
+                              //优先build
+                              if( isBuild && my_Barracks==null && buildWorkersNum<maxBuildWorkersNum){
+                                   buildWorkers.add(u);
+                                   buildWorkersNum++;
+                               }else if(harvestNum< maxHarvestWorkersNum){
+                                   harvestWorkers.add(u);
+                                   harvestNum++;
+                               }else{
+                                     warriorUnits.add(u);
+                               }
+                          }
+                      }else if(u.getType().canAttack){     //可作战单位
+                        //  if(!harvestWorkers.contains(u)){
+                               warriorUnits.add(u);
+                         // }
+                          System.out.println(warriorUnits.size());
+                      }
+             }else{      //敌方单位
+                 if(u.getType() == baseType){
+                      enermy_Base =u ;
+                 }else if(u.getPlayer()>=0 && u.getPlayer()!=p.getID()){
+                      enermyUnits.add(u);
+                 }
+             }
+             }
         }
-       
+   
         System.out.println("我方的大小"+evlourUnits.size());
         System.out.println("敌方的大小"+enermyUnits.size());
         int battleState[]=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
@@ -223,28 +274,33 @@ public class MyRtsAi extends AbstractionLayerAI{
             lastCombatValue=battleState[1];
             myQlearning.printLastS_A();
         }else if( gs.getTime()<=550){
-            this.workersBehavior(harvestWorkers,buildWorker, p, pgs,true,1,4,3);
+            this.workersBehavior(harvestWorkers,buildWorkers, p, pgs,isBuild,1,4,3);
             if(enermy_Barracks!=null){
              action=5;
-            }else{
-             action=0;
+            }else {
+             System.out.println("敌方没有兵营，建造worker");
+             action=4;
             }
         }
         
         String ourMajor=actionMajor[action];
         int ourA_D=this.actionA_D[action];
         
-        // 使用战略
-        if(ourMajor!="Worker"){
-             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, true,1,4,3);
-             this.baseBehavior(my_Base, p, gs, 1);
-            this.rushTactics(gs, player, ourMajor, my_Barracks, warriorUnits, enermyUnits, 2,ourA_D);
+        if(gs.getTime()>=150 ){
+             this.baseBehavior(my_Base, p, gs, 3,0);
         }else{
-             this.workersBehavior(harvestWorkers,buildWorker, p, pgs, false,1,4,3);
-              this.baseBehavior(my_Base, p, gs, 1);
-            this.rushTactics(gs, player, ourMajor, my_Base, warriorUnits, enermyUnits, 2,ourA_D);
+             this.baseBehavior(my_Base, p, gs, 4,2);   
         }
-        
+        // 使用战略
+       if(gs.getTime()>=150){
+            if(ourMajor!="Worker" ){
+                 this.workersBehavior(harvestWorkers,buildWorkers, p, pgs, isBuild,1,4,3);
+                this.rushTactics(gs, player, ourMajor, my_Barracks, warriorUnits, enermyUnits, 2,ourA_D);
+            }else{
+                 this.workersBehavior(harvestWorkers,buildWorkers, p, pgs, isBuild,1,4,3);
+                 this.rushTactics(gs, player, ourMajor, my_Base, warriorUnits, enermyUnits, 2,ourA_D);
+            }
+       }
         //辅助信息
         switch(majorUnitType[0]){
             case 0:  System.out.println("以Worker为主");break;
@@ -652,7 +708,7 @@ public class MyRtsAi extends AbstractionLayerAI{
          //训练相应的rush单位
          if(trainBuilding!=null){
              if(trainBuilding.getType()==baseType){
-                 this.baseBehavior(trainBuilding, p, gs, 2);
+                 this.baseBehavior(trainBuilding, p, gs, 2,0);
              }else if(trainBuilding.getType()==barracksType){
                  this.barracksBehavior(trainBuilding, p, gs, rushType);
              }
@@ -699,7 +755,13 @@ public class MyRtsAi extends AbstractionLayerAI{
              }
          }
     }
-    public void baseBehavior(Unit u, Player p, GameState gs,int trainType) {
+    /*
+    intput : trainType : 1 根据maxharvestWorkersNum 训练用来收获的农民
+                         2 根据maxOffendWorkersNum 训练用来防御的农民
+                        3 根据leastWorkersNum 维持农民数量
+                        4 任意数目，数目由另外一个参数给定，只有在trainType为4的时候才有效
+    */
+    public void baseBehavior(Unit u, Player p, GameState gs,int trainType,int trainNum) {
          //先统计目前战场上的农民的数目
         PhysicalGameState pgs=gs.getPhysicalGameState();
         int allWorkers=0;
@@ -708,9 +770,12 @@ public class MyRtsAi extends AbstractionLayerAI{
         for (Unit u2:selectUnitsAround(gs, p.getID(), "Worker", 0, 0, pgs.getWidth(), pgs.getHeight(), -1, false)) {
             //说明，这里我不知道怎么确定自己的农民现在正在干啥。
             if(u2!=null){
-                if (u2.getType().canHarvest) {
+                AbstractAction aa = getAbstractAction(u2);
+                if (aa instanceof Harvest) {
+                      allWorkers++;
                     harvestWorkers++;
-                }else if(u2.getType().canAttack){
+                }else if(aa instanceof Attack){
+                      allWorkers++;
                     offendWorkers++;
                 }else{
                     allWorkers++;
@@ -733,6 +798,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                 }
                 break;
             case 3:
+                /*
                 if(maxHarvestWorkersNum == -1 && p.getResources()>=workerType.cost){
                     train(u,workerType);
                 }else if(harvestWorkers<maxHarvestWorkersNum && p.getResources()>=workerType.cost){
@@ -741,6 +807,14 @@ public class MyRtsAi extends AbstractionLayerAI{
                 if(maxOffendWorkersNum==-1 && p.getResources()>=workerType.cost){
                     train(u,workerType);
                 }else if(offendWorkers< maxOffendWorkersNum && p.getResources()>=workerType.cost){
+                    train(u,workerType);
+                }*/
+                if(allWorkers<leastWorkersNum){
+                    train(u,workerType);
+                }
+                break;
+            case 4:
+                if(allWorkers<trainNum){
                     train(u,workerType);
                 }
                 break;
@@ -802,12 +876,14 @@ public class MyRtsAi extends AbstractionLayerAI{
     barrack_x,barrack_y:兵营坐标
     input: 
     */
-    public void workersBehavior(List<Unit>harvestWorkers,List<Unit> workers, Player p, PhysicalGameState pgs,boolean isBuild,int barracksNum,int barrack_x,int barrack_y) {
+    public void workersBehavior(List<Unit>harvestWorkers,List<Unit> builderWorkers, Player p, PhysicalGameState pgs,boolean isBuild,int barracksNum,int barrack_x,int barrack_y) {
         int nbarracks = 0;
 
         int resourcesUsed = 0;
         List<Unit> freeWorkers = new LinkedList<Unit>();
+        List<Unit> workers = new LinkedList<Unit>();
         freeWorkers.addAll(harvestWorkers);
+        workers.addAll(builderWorkers);
 
         for (Unit u2 : pgs.getUnits()) {
             if (u2.getType() == barracksType
@@ -817,13 +893,27 @@ public class MyRtsAi extends AbstractionLayerAI{
         }
 
         List<Integer> reservedPositions = new LinkedList<Integer>();
-        if(isBuild&&!workers.isEmpty()){
-            if (nbarracks < barracksNum && !freeWorkers.isEmpty()) {
+         System.out.println("workersize"+workers.size());
+     //    if(!isBuild){
+       //      System.out.println("不允许建造兵营");
+       //  }
+        if(isBuild &&!workers.isEmpty()){
+              if (nbarracks < barracksNum ) {
                 // build a barracks:
-                if (p.getResources() >= barracksType.cost + resourcesUsed && !freeWorkers.isEmpty()) {
+                if (p.getResources() >= barracksType.cost + resourcesUsed ) {
+                    System.out.println("资源足够建造兵营");
                     Unit u = workers.remove(0);
+                  //  move(u,barrack_x,barrack_y);
                     buildIfNotAlreadyBuilding(u,barracksType,barrack_x,barrack_y,reservedPositions,p,pgs);
                     resourcesUsed += barracksType.cost;
+                }else{  //否则让建筑工人去采矿
+                   // if(p.getResources() < barracksType.cost + resourcesUsed ){
+                         System.out.println("资源不够建造兵营");
+                    //}
+                    for(Unit u: workers){
+                        freeWorkers.add(u);
+                        workers.remove(u);
+                    }
                 }
             }
         }
