@@ -227,7 +227,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                          // }
                           System.out.println(warriorUnits.size());
                       }
-             }else{      //敌方单位
+             }else if(u.getPlayer() != player){      //敌方单位
                  if(u.getType() == baseType){
                       enermy_Base =u ;
                  }else if(u.getPlayer()>=0 && u.getPlayer()!=p.getID()){
@@ -911,8 +911,9 @@ public class MyRtsAi extends AbstractionLayerAI{
                          System.out.println("资源不够建造兵营");
                     //}
                     for(Unit u: workers){
-                        freeWorkers.add(u);
-                        workers.remove(u);
+                        if(u!=null){
+                            freeWorkers.add(u);
+                        }
                     }
                 }
             }

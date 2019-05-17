@@ -6,14 +6,7 @@ package test;
 
 import ai.core.AI;
 import ai.*;
-import ai.abstraction.HeavyRush;
-import ai.abstraction.LightDefense;
-import ai.abstraction.LightRush;
-import ai.abstraction.RangedDefense;
-import ai.abstraction.RangedRush;
-import ai.abstraction.WorkerDefense;
-import ai.abstraction.WorkerRush;
-import ai.abstraction.WorkerRushPlusPlus;
+import ai.abstraction.*;
 import ai.abstraction.cRush.CRush_V1;
 import ai.abstraction.cRush.CRush_V2;
 import ai.abstraction.partialobservability.POLightRush;
@@ -21,7 +14,6 @@ import ai.abstraction.pathfinding.AStarPathFinding;
 import ai.abstraction.pathfinding.BFSPathFinding;
 import ai.mcts.naivemcts.NaiveMCTS;
 import ai.mcts.uct.UCT;
-import ai.minimax.RTMiniMax.IDRTMinimax;
 import ai.montecarlo.MonteCarlo;
 import ai.montecarlo.lsi.LSI;
 import ai.portfolio.portfoliogreedysearch.PGSAI;
@@ -42,20 +34,53 @@ import util.XMLWriter;
  *
  * @author santi
  */
+//防御被打进攻
+//Range升级
+//造兵营
 public class GameVisualSimulationTest {
     public static void main(String args[]) throws Exception {
+        int k=0;
+        //int j=1;
+        //do{           
+        do{
+            //System.out.println("     J:"+j);
+            System.out.println("     K:"+k);
         UnitTypeTable utt = new UnitTypeTable();
        AStarPathFinding aps= new AStarPathFinding();
         PhysicalGameState pgs = PhysicalGameState.load("maps/16x16/basesWorkers16x16.xml", utt);
 //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
         GameState gs = new GameState(pgs, utt);
-        int MAXCYCLES = 5000;
-        int PERIOD = 20;
+        int MAXCYCLES = 3000;
+        int PERIOD = 1;
         boolean gameover = false;
         
-        AI ai1 = new MyRtsAi(utt,aps);        
-        AI ai2 = new FirstRush(utt);
+        AI ai1 = new CRush_V1(utt);  
+        AI ai2=new AI2(utt);
+        /*switch(j%7)
+        {
+            case 0:
+                ai2 = new CRush_V1(utt);
+                break;
+            case 1:
+                ai2 = new CRush_V2(utt);
+                break;
+            case 2:
+                ai2 = new LightRush(utt);
+                break;
+            case 3:
+                ai2 = new HeavyRush(utt);
+                break;
+            case 4:
+                ai2 = new FirstRush(utt);
+                break;
+            case 5:
+                ai2 = new LightDefense(utt);
+                break;
+            case 6:
+                ai2 = new HeavyDefense(utt);
+                break;
+        }*/
        // AI ai2 = new RandomBiasedAI();
 
         JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
@@ -83,7 +108,16 @@ public class GameVisualSimulationTest {
         }while(!gameover && gs.getTime()<MAXCYCLES);
         ai1.gameOver(gs.winner());
         ai2.gameOver(gs.winner());
-        
+        k++;
+        //if(gs.winner()==0)
+        //    k++;
+        //else
+         //   k=0;
         System.out.println("Game Over");
+        w.dispose();
+         }while(k!=1000);//(k%10!=0||k==0);
+        //j++;
+        //}while(k!=70);
     }    
+       
 }
