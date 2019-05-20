@@ -100,6 +100,58 @@ public class Qlearning {
             e.printStackTrace();
         }
     }
+    public void reset(int a,int s,double a1,double r1, String QFile,String rFile){
+        actionNum=a; stateNum=s; alpha=a1; r=r1; 
+        QMatrixFileName=QFile;
+        rewardFileName =  rFile;
+        rewardMatrix=new double[actionNum][stateNum];
+        QMatrix= new double[actionNum][stateNum];
+        actionLast=-1;
+        stateLast=-1;
+        try{
+            QMatrixFile = new File(QMatrixFileName);
+            rewardFile = new File(rewardFileName);
+            //检查文件是否存在,如果不存在新建文件，并且对两个矩阵的数据进行初始化
+            if(!QMatrixFile.exists()&&!rewardFile.exists()){
+                  System.out.println("创建数据");
+                  QMatrixFile.createNewFile();
+                  rewardFile.createNewFile();
+                  //初始化Q和R矩阵
+                  int i,j;
+                  for(i=0;i<actionNum;i++){
+                      for(j=0;j<stateNum;j++){
+                          QMatrix[i][j] = 0;
+                      }
+                  }
+                  //电脑写reward
+                  //这里是按章50个state 进行赋值，具体情况要有所改动
+                  for(i=0;i<actionNum;i++){
+                      for(j=0;j<stateNum;j++){
+                         switch(j/10){
+                             case 0: rewardMatrix[i][j] = -100;break;
+                             case 1: rewardMatrix[i][j] = -50;break;
+                             case 2: rewardMatrix[i][j] = 0;break;
+                             case 3: rewardMatrix[i][j] = 50;break;
+                             case 4: rewardMatrix[i][j] =100;break;
+                             default: rewardMatrix[i][j] = 0;
+                         }
+                      }
+                  }
+                  for(j=0;j<stateNum;j++){
+                       rewardMatrix[1][j]=100;
+                       rewardMatrix[5][j]=100;
+                  }
+                  //写入数据
+                  writeToFile(true);
+            }else{
+                //从文件中读取数据  
+                System.out.println("读取数据");
+                readFromFile();
+            }
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
     //文件读取和写入的函数
     private void readFromFile(){
         //采用字符流

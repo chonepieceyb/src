@@ -36,6 +36,136 @@ import myrtsai.Qlearning;
  * @author msi-
  */
 public class MyRtsAi extends AbstractionLayerAI{
+    //内置类
+    private class UnitsState{
+       //属性,为了方便全部弄成public
+        public Unit base = null;    //基地
+        public Unit bArrackes = null;   //兵营
+        //兵力数
+        public int workerNum =0;
+        public int lightNum=0;
+        public int rangedNum =0;
+        public int heavyNum = 0;
+        public int unitNum =0; //包含兵营和基地的所有单位的数目
+        public int[] averagePos = new int[2];   //单位的平均位置，除了基地外的所有单位横纵坐标的平均值
+        //构造函数
+        public UnitsState(){
+               resetToZero();
+        }
+        //更新 参数是所有单位(我方单位还是地方单位要手动区分（包括基地和未分配的单位）
+        void update( List<Unit> Units){
+            resetToZero();
+            int allNums =0;
+            int allX =0;
+            int allY=0;
+            for(Unit u: Units){
+                if(u!=null){
+                    allNums++;
+                    allX+=u.getX();
+                    allY+=u.getY();
+                    if(u.getType()==baseType){
+                        base= u;
+                    }else if(u.getType()==barracksType){
+                        bArrackes=u;
+                    }else if(u.getType() == workerType){
+                        workerNum++;
+                    }else if(u.getType() == lightType){
+                        lightNum++;
+                    }else if(u.getType()==rangedType){
+                        rangedNum++;
+                    }
+                    else if(u.getType()== heavyType){
+                        heavyNum++;
+                    }
+                 }
+            }
+            averagePos[0] = (int)allX/allNums;
+            averagePos[1]= (int)allY/allNums;
+            unitNum = allNums;
+        }
+        public void resetToZero(){
+            base = null; 
+            bArrackes = null;
+            workerNum =0;
+            lightNum=0;
+            rangedNum =0;
+            heavyNum = 0;
+            unitNum =0;
+            averagePos[0]=-1;
+            averagePos[1]=-1;
+        }
+    }
+    //内置类 训练版本,以及和Qlearning有关的参数
+    private class QTrainInformation{
+        public int version=2 ; //训练版本,目前有 0 8*8左上 1 8*8 右下 2 16*16左上  3 16*16右下,目前有 0 8*8左上 1 8*8 右下 2 16*16左上  3 16*16右下
+        public double alpha= 0.5;
+        public double Gamma = 0.5;
+        public String QMatrixFileName= null;
+        public String rewardMatrixFileName = null;
+        public int actionNum=8;
+        public int stateNum=100;
+        public int timeStep=100;
+        public QTrainInformation(int version,double alpha, double Gamma, int actions, int states, int timeSteps){   
+            setTrainParameter(alpha, Gamma);
+            setMatrixSize( actions,states);
+            setTimeStep(timeStep);
+            QMatrixFileName = "QMatrix_V" + Integer.toString(version)+".txt";
+            rewardMatrixFileName = "rewardMatrix_V" + Integer.toString(version)+".txt";
+        }
+        public QTrainInformation(int version){
+            //默认值
+            setTrainParameter(0.5, 0.5);
+            setMatrixSize( 8,100);
+            setTimeStep(100);
+            QMatrixFileName = "QMatrix_V" + Integer.toString(version)+".txt";
+            rewardMatrixFileName = "rewardMatrix_V" + Integer.toString(version)+".txt";
+        }
+        //方法,设定能够运行时改变的训练参数
+        public void setTrainParameter(double a, double r){
+            alpha =a;
+            Gamma =r;
+        }
+        public void setMatrixSize( int actions, int states){
+             actionNum = actions;
+             stateNum = states;
+        }
+        public void setTimeStep(int step){
+            timeStep = step;
+        }
+    }
+    
+    //内置类，上一次的学习状态
+    private class LastLearningState{
+          public int lastAction;        //上一次的action值
+          public int lastState;         //上一次的state值
+          public int lastSituation;      //上一次的战场局势
+          public int lastEnermyA_D;      //上一次敌军的攻守状态
+          public int lastEnermyMajor;    //上一次敌军的主力兵种
+          public int lastCombatValue=0; //上一个决策状态的战斗力，初始化为0
+          public int lastTime=0;      //上一次决策的时间
+          //构造函数
+          public LastLearningState(){
+              lastTime=0;
+              lastCombatValue=0;
+          }
+          //更新函数
+          public void update(int args[])throws ArrayIndexOutOfBoundsException{
+              try{
+                  lastAction = args[0];
+                  lastState = args[1];
+                  lastSituation = args[2];
+                  lastEnermyA_D = args[3];
+                  lastEnermyMajor = args[4];
+                  lastCombatValue = args[5];
+                  lastTime=args[6];
+              }catch(Exception e){
+                  throw new ArrayIndexOutOfBoundsException();
+              }
+          }
+    }
+     
+    //AI版本，根据不同的地图大小以及不同的出生点位置选择不同的版本,目前有 0 8*8左上 1 8*8 右下 2 16*16左上  3 16*16右下,目前有 0 8*8左上 1 8*8 右下 2 16*16左上  3 16*16右下
+     int version=2;  
      UnitTypeTable m_utt = null;
      UnitType workerType;
      UnitType baseType;
@@ -43,22 +173,6 @@ public class MyRtsAi extends AbstractionLayerAI{
      UnitType lightType;
      UnitType heavyType;
      UnitType rangedType;
-     /*
-     List<Unit> HarvestWorkers = new ArrayList<>();       //用于收获的工人
-     List<Unit> offendWorkers = new ArrayList<>();       //用于进攻的工人
-     List<Unit> noHarvestUnits=new ArrayList<>(); //非采集单位
-     List<Unit> resources = new ArrayList<>();           //资源
-     List<Unit> warriorUnits= new ArrayList<>();  //进攻的士兵
-     List<Unit> defendUnits= new ArrayList<>();   //防守的士兵
-     */
-     /*
-     Unit my_base = null;
-     Unit my_Barracks=null;
-     Unit enermy_base= null;
-     */
-     //数据说明 如果为 -1表示对数量没有限制
-    // int BuildWorkersNum=0;
-     //int HarvestWorkersNum=0;
      int maxBuildWorkersNum=1;
      int maxHarvestWorkersNum=2; //最多有两个农民用于采矿
      int leastWorkersNum =3;    //最少worker的数目
@@ -66,10 +180,14 @@ public class MyRtsAi extends AbstractionLayerAI{
      int maxHeavyNum=-1; // 重甲兵的最大数目
      int maxLightNum=-1;  //轻甲兵的最大数目
      int maxRangedNum=-1; //远程兵的最大数目
-      List<Unit> harvestWorkers = new ArrayList<>();
-      List<Unit> buildWorkers = new ArrayList<>();
-      Unit my_Base = null;
-      Unit my_Barracks = null;
+     List<Unit> harvestWorkers = new ArrayList<>();
+     List<Unit> buildWorkers = new ArrayList<>();
+    // Unit my_Base = null;
+    // Unit my_Barracks = null;
+     //保存的上一次的单位状态
+     UnitsState ourUnitsState = new UnitsState();   //我方的
+     UnitsState enermyUnitsState = new UnitsState();   //地方的
+     
      //一些矩阵
      int m_battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
         {1 ,-3,-5,-4},{3 ,1, 2, -2},{ 5 ,-2, 1, 2},{4 ,2, -2 ,1}};
@@ -79,19 +197,7 @@ public class MyRtsAi extends AbstractionLayerAI{
      int m_AD_weight_V2[][]={      //我方在右下角的时候..
          { 1,2},{2,4}
      };
-    
-    //和Qlearning 有关的参数
-    Qlearning myQlearning = null;
-    double alpha= 0.5;
-    double r = 0.6;
-    String QMatrixFileName = "QMatrix.txt";
-    String rewardMatrixFileName = "rewardMatrix.txt";
-    int timeStep=100;
-    int lastTime=0;
-    int action;
-    int actionNum=8;
-    int stateNum=100;
-    int lastCombatValue=0; //上一个决策状态的战斗力，初始化为0
+     
     //和getState有关的数组
     // 0-50： 大劣势-大优势
    // int offsetSituation[] = {0,10,20,30,40};
@@ -104,6 +210,14 @@ public class MyRtsAi extends AbstractionLayerAI{
     //和action 有关的数组
     int actionA_D[]={4,4,4,4,0,0,0,0};
     String actionMajor[]={"Worker","Light","Ranged","Heavy","Worker","Light","Ranged","Heavy"};
+    
+    //和Qlearning 有关的参数 ,Qlearning 在构造函数中构造，而Information 在getAction中生成
+    Qlearning myQlearning = null;
+    QTrainInformation trainInformation = null;
+    
+    //过去的状态
+    LastLearningState lastState = new LastLearningState();
+
     
     public MyRtsAi(UnitTypeTable a_utt) {
        this(a_utt, new AStarPathFinding());
@@ -120,7 +234,7 @@ public class MyRtsAi extends AbstractionLayerAI{
           super.reset();
      }
     public void reset(UnitTypeTable a_utt) {
-        myQlearning =new Qlearning(actionNum,stateNum,alpha,r,".\\"+QMatrixFileName,".\\"+rewardMatrixFileName);
+     
         m_utt=a_utt;
         workerType = m_utt.getUnitType("Worker");
         baseType = m_utt.getUnitType("Base");
@@ -131,25 +245,56 @@ public class MyRtsAi extends AbstractionLayerAI{
     }
 
     public PlayerAction getAction(int player, GameState gs) {
+        //变量的声明
         PhysicalGameState pgs = gs.getPhysicalGameState();
         Player p = gs.getPlayer(player);
+        List<Unit> warriorUnits = new ArrayList<>();
+        List<Unit> enermyUnits = new ArrayList<>();
+        List<Unit> enermyNormalUnits = new ArrayList<>();
+        List<Unit> ourNormalUnits = new ArrayList<>();  //用于评估的我方单位
+        List<Unit> ourUnits = new ArrayList<>();
+        Unit my_Base=ourUnitsState.base=null;
+        Unit my_Barracks = ourUnitsState.bArrackes;
+        Unit enermy_Base = enermyUnitsState.base=null;
+        Unit enermy_Barracks=enermyUnitsState.bArrackes=null;
         System.out.println("time"+gs.getTime());
+        int lastTime=lastState.lastTime;
+        int action=lastState.lastAction;
+        int state = lastState.lastState;
+        int situation = lastState.lastSituation;
+        int enermyA_D = lastState.lastEnermyA_D;
+        int enermyMajor = lastState.lastEnermyMajor;
+        int combatValue = lastState.lastCombatValue;
+        int workersNum =0;
+        int bX;   //兵营坐标
+        int bY;
+        if(player==0){
+            bX=4;
+            bY=3;
+        }else{
+            bX=13;
+            bY=16;
+        }
+        //创建Qlearning 
+        if(gs.getTime()==0){
+        createQlearning(pgs,player);
+        }
         //获取战场的信息
-        if(my_Base!=null && my_Base.getHitPoints()<=0){
+        if(my_Base!=null &&my_Base.getHitPoints()<=0){
             my_Base = null;
         }
-        if(my_Barracks !=null &&my_Barracks .getHitPoints()<=0){
+        if( my_Barracks  !=null && my_Barracks .getHitPoints()<=0){
             my_Barracks  = null;
         }
-        int harvestNum=0;//
         
-        //统计当前harvestWorkers数组里实际能工作的农名数
+        int harvestNum=0;//
+        //统计当前harvestWorkers数组里实际能工作的农民数
         for(Unit u : harvestWorkers){
             if(u!=null && u.getHitPoints()>0){
                 harvestNum++;
             }
         }
-       // List<Unit> harvestWorkers = new ArrayList<>();
+     
        int buildWorkersNum = 0 ;
        boolean isBuild ;
        if(gs.getTime()>=50){
@@ -157,124 +302,99 @@ public class MyRtsAi extends AbstractionLayerAI{
        else{
            isBuild=false;
        }
-        int workersNum =0;
-        //统计农民的数目，农民数目至少为3个
+         if(my_Barracks!=null){
+            isBuild = false;
+            buildWorkers.clear();
+        }
+      //统计农民的数目，农民数目至少为3个
         //统计buildWorkers数据
         for(Unit u :buildWorkers){
             if(u!=null && u.getHitPoints()>0){
                 buildWorkersNum++;
             }
         }
-        if( my_Barracks !=null){
-            System.out.println("我方有兵营了，开始削减建筑工人的数目"+buildWorkersNum);
-            buildWorkers.add(null);
-            for(Unit u :buildWorkers){
-                if(u!=null && u.getHitPoints()>0){
-                 buildWorkers.remove(u);
-                 isBuild= false;
-                 buildWorkersNum--;
-                }
-            }
-        }
-        List<Unit> warriorUnits = new ArrayList<>();
-        List<Unit> enermyUnits = new ArrayList<>();
-        List<Unit> evlourUnits = new ArrayList<>();  //用于评估的我方单位
-
-        Unit enermy_Base = null;
-        Unit evl_myBase=null; //用于评估的my_base
-        Unit enermy_Barracks=null;
+     
         //对战场所有单位进行分类
-          for(Unit u: pgs.getUnits()){
-              if(u!=null ){
-                  if(u.getPlayer() == player ){
-                      if(u.getType()!=baseType && u.getType().canAttack){
-                          evlourUnits .add(u);
-                      }else if(u.getType()==baseType){
-                          evl_myBase=u;
-                      }else if(u.getType()== barracksType){
-                           enermy_Barracks=u;
-                      }
-                  }
-              }
-          }
         for(Unit u: pgs.getUnits()){
             if(u!=null ){
-                  if(u.getPlayer() == player && u.getType()==baseType){
-                      evl_myBase=u;
-                  }
-                  if(u.getPlayer() == player && gs.getActionAssignment(u)==null ){   //我方的单位
+                  if(u.getPlayer()==player){
                       if(u.getType() == baseType){   // 基地
                           my_Base = u;
                       }else if(u.getType()== barracksType){   //兵营
                           my_Barracks = u; 
-                      }else if(u.getType() == workerType && u.getType().canHarvest ){
-                          workersNum++;
-                          if(!harvestWorkers.contains(u) && !buildWorkers.contains(u)){
-                              //优先build
-                              if( isBuild && my_Barracks==null && buildWorkersNum<maxBuildWorkersNum){
-                                   buildWorkers.add(u);
-                                   buildWorkersNum++;
-                               }else if(harvestNum< maxHarvestWorkersNum){
-                                   harvestWorkers.add(u);
-                                   harvestNum++;
-                               }else{
-                                     warriorUnits.add(u);
+                      }else{    //非基地和非兵营单位
+                          ourNormalUnits.add(u);
+                          if(gs.getActionAssignment(u)==null ) { //非分配工作的单位
+                              if(u.getType() == workerType){
+                                   workersNum++;
+                                   if(!harvestWorkers.contains(u) && !buildWorkers.contains(u)){
+                                   //优先build
+                                        if( isBuild && my_Barracks==null && buildWorkersNum<maxBuildWorkersNum){
+                                              buildWorkers.add(u);
+                                              buildWorkersNum++;
+                                        }else if(harvestNum< maxHarvestWorkersNum){
+                                              harvestWorkers.add(u);
+                                              harvestNum++;
+                                        }else{
+                                                warriorUnits.add(u);
+                                        }
+                                   }
+                              }else if(u.getType().canAttack){     //可作战单位
+                                      warriorUnits.add(u);
+                                      System.out.println(warriorUnits.size());
                                }
                           }
-                      }else if(u.getType().canAttack){     //可作战单位
-                        //  if(!harvestWorkers.contains(u)){
-                               warriorUnits.add(u);
-                         // }
-                          System.out.println(warriorUnits.size());
                       }
-             }else if(u.getPlayer() != player){      //敌方单位
-                 if(u.getType() == baseType){
-                      enermy_Base =u ;
-                 }else if(u.getPlayer()>=0 && u.getPlayer()!=p.getID()){
-                      enermyUnits.add(u);
-                 }
-             }
-             }
-        }
-   
-        System.out.println("我方的大小"+evlourUnits.size());
-        System.out.println("敌方的大小"+enermyUnits.size());
-        int battleState[]=this.evaluateState(evl_myBase,evlourUnits, enermy_Base, enermyUnits, 0.4f ,4);
+                  }else if(u.getPlayer()!= player){   //敌方的
+                      if(u.getType() == baseType){
+                           enermy_Base =u ;
+                       }else if(u.getType()==barracksType){
+                            enermy_Barracks= u;
+                       }else if(u.getType().canAttack){
+                           enermyNormalUnits.add(u);
+                       }
+                  }
+            }
+                      
+         }
+
+        enermyUnits.add(enermy_Barracks);
+        enermyUnits.add(enermy_Base);
+        enermyUnits.addAll(enermyNormalUnits);
+        ourUnits.add(my_Barracks);
+        ourUnits.add(my_Base);
+        ourUnits.addAll(ourNormalUnits);
+        
+        System.out.println("我方的大小"+ourNormalUnits.size());
+        System.out.println("敌方的大小"+enermyNormalUnits.size());
+        int battleState[]=this.evaluateState(my_Base,ourNormalUnits, enermy_Base, enermyNormalUnits, 0.4f ,4);
+        System.out.println("评估局势");
         int majorUnitType[] = this.evaluateEnermyMajorUnit(pgs, p, 6, 3);
-        int enermy_AD_Type=this.evaluate_AD_Tactics(pgs, p,1.2f );
+        enermyA_D=this.evaluate_AD_Tactics(pgs, p,1.2f );
+        situation = battleState[0];
         //开始Q-learning 
         //获取majorUnitType
-        int majorUnit=-1;
-        if(majorUnitType[0]==4){
-            majorUnit=3+majorUnitType[1];
-        }else{
-            majorUnit=majorUnitType[0];
-        }
+        enermyMajor = getMajorType(majorUnitType);
         //获取state
-        int state=0;
-        if(majorUnitType[0]==-1 || battleState[0]==-1|| enermy_AD_Type==-1){
-            state=20;
-        }else{
-           state =  this.offsetSituation[battleState[0]] + this.offsetD_A[enermy_AD_Type] +this.offsetMajor[majorUnit];
-        }
+        state = getState(situation ,enermyA_D, enermyMajor);
         //开局设一个单独的状态
         System.out.println("当前的状态"+state);
-        if(gs.getTime()==551||gs.getTime()-lastTime>=timeStep){
+        if(gs.getTime()==551||gs.getTime()-lastTime>=trainInformation.timeStep){
             lastTime= gs.getTime();
             System.out.println("训练 lastTime"+lastTime);
             if(gs.getTime()>=550){
                 if(battleState[1]!=-1000){
-                     action=myQlearning.learning(state,battleState[1]-lastCombatValue, true);
+                     action=myQlearning.learning(state,battleState[1]-combatValue, true);
                 }else{
                      action=myQlearning.learning(state,battleState[1], true);
                 }
             }
             //将当前战斗力存储下来
-            System.out.println("本次的rewardv "+(battleState[1]-lastCombatValue));
-            lastCombatValue=battleState[1];
+            System.out.println("本次的rewardv "+(battleState[1]-combatValue));
+            combatValue=battleState[1];
             myQlearning.printLastS_A();
         }else if( gs.getTime()<=550){
-            this.workersBehavior(harvestWorkers,buildWorkers, p, pgs,isBuild,1,4,3);
+            this.workersBehavior(harvestWorkers,buildWorkers, p, pgs,isBuild,1,bX,bY);
             if(enermy_Barracks!=null){
              action=5;
             }else {
@@ -294,13 +414,30 @@ public class MyRtsAi extends AbstractionLayerAI{
         // 使用战略
        if(gs.getTime()>=150){
             if(ourMajor!="Worker" ){
-                 this.workersBehavior(harvestWorkers,buildWorkers, p, pgs, isBuild,1,4,3);
+                 this.workersBehavior(harvestWorkers,buildWorkers, p, pgs, isBuild,1,bX,bY);
                 this.rushTactics(gs, player, ourMajor, my_Barracks, warriorUnits, enermyUnits, 2,ourA_D);
             }else{
-                 this.workersBehavior(harvestWorkers,buildWorkers, p, pgs, isBuild,1,4,3);
+                 this.workersBehavior(harvestWorkers,buildWorkers, p, pgs, isBuild,1,bX,bY);
                  this.rushTactics(gs, player, ourMajor, my_Base, warriorUnits, enermyUnits, 2,ourA_D);
             }
        }
+       //更新信息
+        int args[]={        
+        action,
+        state ,
+        situation,
+        enermyA_D ,
+        enermyMajor ,
+        combatValue,
+        lastTime,
+        };
+        try{
+            lastState.update(args);
+        }catch(Exception e){
+            System.out.println("更新参数时数组越界");
+        }
+        ourUnitsState.update(ourUnits);
+        enermyUnitsState.update(enermyUnits);
         //辅助信息
         switch(majorUnitType[0]){
             case 0:  System.out.println("以Worker为主");break;
@@ -310,12 +447,11 @@ public class MyRtsAi extends AbstractionLayerAI{
             case 4:    System.out.println("混合兵种");break;
             default:  System.out.println("判断主要兵种出错");
         }
-        switch(enermy_AD_Type){
+        switch(enermyA_D){
             case 1:  System.out.println("敌方进攻");break;
             case 0:  System.out.println("敌方防守");break;
             default:  System.out.println("判断攻守失败");
         }
-        enermyUnits.add(enermy_Base);
         //System.out.println("###");
         //System.out.println(enermyUnits.size());
         //农民建筑和收获
@@ -334,14 +470,41 @@ public class MyRtsAi extends AbstractionLayerAI{
      
     }
     
-    /*
-    框架说明，为了更好的管理整个AI的行动，仿照lightrush将各个建筑，的行为进行封装，我的想法是决策的关键在于比例...（农民的比例和各个兵种的比例)
-    */
-    /*
-    基地的行为，说明：基地主要是为了训练农民，训练农民主要有两个目的 1 收集资源 2 rush
-    参数说明 input:前面三个参数 必要的，最后一个参数 1 表示训练收获的农民，2表示训练rush的农民 3表示不区分训练农民（先训练收获的农民，再训练rush的农民）
-    */
-    
+ 
+    //一些游戏过程的函数
+    private void createQlearning(PhysicalGameState pgs, int player){
+        int sizeOffset[] ={0,2,4,6};
+        int playerOffset[]={0,1};
+        int sizeIndex= (pgs.getWidth() /8)-1;
+        int playerIndex = player;
+        version = sizeOffset[sizeIndex]+ playerOffset[playerIndex];
+        trainInformation = new QTrainInformation(version);
+        int actionNum = trainInformation.actionNum;
+        int stateNum = trainInformation.stateNum;
+        String QMatrixFileName = trainInformation.QMatrixFileName;
+        String rewardMatrixFileName = trainInformation.rewardMatrixFileName;
+        double alpha = trainInformation.alpha;
+        double r =trainInformation.Gamma;
+        myQlearning=new Qlearning(actionNum,stateNum,alpha,r,".\\"+QMatrixFileName,".\\"+rewardMatrixFileName);
+    }
+    private int getMajorType(int[] majorUnitType){
+        int majorUnit=-1;
+        if(majorUnitType[0]==4){
+            majorUnit=3+majorUnitType[1];
+        }else{
+            majorUnit=majorUnitType[0];
+        }
+        return majorUnit;
+    }
+    private int  getState(int situation, int A_D, int major){
+        int state=0;
+        if( major==-1 || situation==-1||  A_D==-1){
+            state=20;
+        }else{
+           state =  this.offsetSituation[situation] + this.offsetD_A[A_D] +this.offsetMajor[major];
+        }
+        return state;
+    }
     /*
     判断对面是攻击还是防守的函数
     返回值 0：敌方防守 1：敌方进攻 : -1不正常
@@ -523,6 +686,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         单个兵种的战斗力公式 1+(maxd/d)*distanceLevel 注：这里没有考虑兵种的差异，而实考虑数目和距离，兵种的差异体现在之后还有一个 矩阵 maxd表示地图最大距离，而d 表示本兵种距离对方基地的距离
         */
         //输出
+         System.out.println("进入评估函数");
         int output[]={0,0};
         int battleWeight[][] = m_battleWeight;//战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
         if(my_Base==null && enermy_Base!=null){    //我方没基地了 大劣势
@@ -558,10 +722,12 @@ public class MyRtsAi extends AbstractionLayerAI{
         }
         //开始统计我方战斗数组
         for(Unit u1: ourUnits){
+             
            if(u1!=null && u1.getType().canAttack){  //如果不为空且能够进攻
                 float combatValue=0;
                 if(enermy_Base!=null){   //敌方基地存在才能计算距离
                        int d = Math.abs( u1.getX()- enermy_Base.getX())+ Math.abs(u1.getY()- enermy_Base.getY());
+                       System.out.println(enermy_Base.getX()+" " +enermy_Base.getY());
                        combatValue = maxD+(maxD/d)*distanceLevel;
                 }else{
                     combatValue =maxD;
@@ -578,6 +744,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                 }
            }
         }
+       
         //统计敌方战斗数组
         for(Unit u2: enermyUnits){
                if(u2!=null && u2.getType().canAttack){  //如果不为空且能够进攻
@@ -603,6 +770,7 @@ public class MyRtsAi extends AbstractionLayerAI{
           //计算 myCombatAll
           float myCombatAll=0;
           int enermyNoZero=0;
+          System.out.println("循环2");
           for(i=0;i<4;i++){
               if(enermyCombat[i]!=0){
                 enermyNoZero++;
@@ -656,7 +824,14 @@ public class MyRtsAi extends AbstractionLayerAI{
           
          return output;
     }
-
+    
+    /*
+      获取reward的函数，根据对战的结果我们发现对于攻击和防守reward应该不同
+      根据成员变量 上一步的action 以及当前战场的情况来得到上一步action 的reward
+    */
+    private double getReward(){
+        return 0;
+    }
     /*
     gs 和 Player同之前
     input :
@@ -755,6 +930,7 @@ public class MyRtsAi extends AbstractionLayerAI{
              }
          }
     }
+
     /*
     intput : trainType : 1 根据maxharvestWorkersNum 训练用来收获的农民
                          2 根据maxOffendWorkersNum 训练用来防御的农民
@@ -910,6 +1086,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                    // if(p.getResources() < barracksType.cost + resourcesUsed ){
                          System.out.println("资源不够建造兵营");
                     //}
+                    
                     for(Unit u: workers){
                         if(u!=null){
                             freeWorkers.add(u);

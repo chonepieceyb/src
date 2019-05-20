@@ -47,16 +47,16 @@ public class GameVisualSimulationTest {
             System.out.println("     K:"+k);
         UnitTypeTable utt = new UnitTypeTable();
        AStarPathFinding aps= new AStarPathFinding();
-        PhysicalGameState pgs = PhysicalGameState.load("maps/16x16/basesWorkers16x16.xml", utt);
+        PhysicalGameState pgs = PhysicalGameState.load("maps/8x8/basesWorkers8x8.xml", utt);
 //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
         GameState gs = new GameState(pgs, utt);
         int MAXCYCLES = 3000;
-        int PERIOD = 1;
+        int PERIOD = 15;
         boolean gameover = false;
         
-        AI ai1 = new CRush_V1(utt);  
-        AI ai2=new AI2(utt);
+        AI ai1 = new MyRtsAi(utt);  
+        AI ai2 =new MyRtsAi(utt);
         /*switch(j%7)
         {
             case 0:
