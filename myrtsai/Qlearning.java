@@ -30,12 +30,18 @@ public class Qlearning {
     String rewardFileName;
     File QMatrixFile = null;
     File rewardFile=null;
-    double alpha;          //学习率
+    double alphaR;         //R矩阵的学习率
+    double alpha;          //Q矩阵的学习率
     double r;    //远见率
     double rewardMatrix[][]=null;
     double QMatrix[][]=null;    //Q矩阵
     int actionLast;        //上一步的决策 即 a_n-1
     int stateLast;         //上一步的状态 即 s_n-1
+    int learningTime;  //学习次数
+    double QChangeRate;
+    double AllQChangeRate;
+    double RChangeRate;
+    double AllRChangedRate;
  //方法
     /*
     构造函数
@@ -49,7 +55,7 @@ public class Qlearning {
     */
     Qlearning(int a,int s,double a1,double r1, String QFile,String rFile){
         //数据的初始化
-        actionNum=a; stateNum=s; alpha=a1; r=r1; 
+        actionNum=a; stateNum=s; alpha=a1; r=r1; learningTime=0;
         QMatrixFileName=QFile;
         rewardFileName =  rFile;
         rewardMatrix=new double[actionNum][stateNum];
@@ -72,22 +78,12 @@ public class Qlearning {
                       }
                   }
                   //电脑写reward
-                  //这里是按章50个state 进行赋值，具体情况要有所改动
+                  //这里是按章19个state 进行赋值，具体情况要有所改动
                   for(i=0;i<actionNum;i++){
                       for(j=0;j<stateNum;j++){
-                         switch(j/10){
-                             case 0: rewardMatrix[i][j] = -100;break;
-                             case 1: rewardMatrix[i][j] = -50;break;
-                             case 2: rewardMatrix[i][j] = 0;break;
-                             case 3: rewardMatrix[i][j] = 50;break;
-                             case 4: rewardMatrix[i][j] =100;break;
-                             default: rewardMatrix[i][j] = 0;
-                         }
+                        // rewardMatrix[i][j] = (int)((j/20)-4)*10;
+                         rewardMatrix[i][j]=0;
                       }
-                  }
-                  for(j=0;j<stateNum;j++){
-                       rewardMatrix[1][j]=100;
-                       rewardMatrix[5][j]=100;
                   }
                   //写入数据
                   writeToFile(true);
@@ -100,8 +96,13 @@ public class Qlearning {
             e.printStackTrace();
         }
     }
+    //构造函数的重载
+    Qlearning(int a,int s, double a1,double r1, double a2,String QFile ,String rFile){
+        this(a,s,a1,r1,QFile,rFile);
+        alphaR=a2;
+     }
     public void reset(int a,int s,double a1,double r1, String QFile,String rFile){
-        actionNum=a; stateNum=s; alpha=a1; r=r1; 
+        actionNum=a; stateNum=s; alpha=a1; r=r1;  learningTime=0;
         QMatrixFileName=QFile;
         rewardFileName =  rFile;
         rewardMatrix=new double[actionNum][stateNum];
@@ -124,22 +125,12 @@ public class Qlearning {
                       }
                   }
                   //电脑写reward
-                  //这里是按章50个state 进行赋值，具体情况要有所改动
+                  //这里是按章380个state 进行赋值，具体情况要有所改动
                   for(i=0;i<actionNum;i++){
                       for(j=0;j<stateNum;j++){
-                         switch(j/10){
-                             case 0: rewardMatrix[i][j] = -100;break;
-                             case 1: rewardMatrix[i][j] = -50;break;
-                             case 2: rewardMatrix[i][j] = 0;break;
-                             case 3: rewardMatrix[i][j] = 50;break;
-                             case 4: rewardMatrix[i][j] =100;break;
-                             default: rewardMatrix[i][j] = 0;
-                         }
+                         //rewardMatrix[i][j] = (int)((j/20)-4)*10;
+                         rewardMatrix[i][j]=0;
                       }
-                  }
-                  for(j=0;j<stateNum;j++){
-                       rewardMatrix[1][j]=100;
-                       rewardMatrix[5][j]=100;
                   }
                   //写入数据
                   writeToFile(true);
@@ -151,6 +142,11 @@ public class Qlearning {
         }catch(Exception e){
             e.printStackTrace();
         }
+    }
+    // reset函数的重载增加了对R学习率的初始化
+    public void reset(int a,int s, double a1,double r1,double a2,String QFile ,String rFile){
+        alphaR=a2;
+        this.reset(a, s, a1, r1, QFile, rFile);
     }
     //文件读取和写入的函数
     private void readFromFile(){
@@ -164,8 +160,9 @@ public class Qlearning {
             //开始读数据
             String Qline="";   
             String Rline="";
-            String Q_DoubleString[] = new String[actionNum]; //用来存放Q数据的字符串数组
-            String R_DoubleString[] = new String[actionNum]; //用来存放R数据的字符串数组
+            //有bug:不是actionNum
+            String Q_DoubleString[] = new String[stateNum]; //用来存放Q数据的字符串数组
+            String R_DoubleString[] = new String[stateNum]; //用来存放R数据的字符串数组
             //一行一行地读数据
             int i;
             for(i = 0;i<actionNum;i++){
@@ -301,67 +298,103 @@ public class Qlearning {
         }
     }
     /*
+        更新R矩阵的函数,这是对上一步的reward进行更新
+        input: reward 当前的reward
+   */
+    public void updateRMatrix(int reward){
+       if(actionLast!=-1){//如果决策是有效的
+           this.rewardMatrix[actionLast][stateLast]  = this.rewardMatrix[actionLast][stateLast]*(1-alphaR) + alphaR*reward;
+       }
+    }
+
+       
+    /*
     Qlearning 学习函数
     inputt : state 当前的状态
-             isWrite : 是否将更新后的Q矩阵写入到文件中 
+             isWriteQ : 是否将更新后的Q矩阵写入到文件中 
+             isWriteR :  是否将更新后的R矩阵写入文件中
+              boolean isPrintLog:是否打印log
     output: 在当前状态下采取的action
     */
-    public int learning( int state,boolean isWrite){
+    public int learningQ( int state,boolean isWriteQ,boolean isWriteR,boolean isPrintLog){
     //先根据当前的state更新上一步决策 的Q矩阵
     // 如果不是第一次 ，由于第一次决策没有上一次，所以不进行更新
+       int[] logState = new int[2]; int[] logAction = new int[2]; double logReward=-1; double[] logR = new double[2]; double[] logQ = new double[2];
        int actionNow=-1;  //当前状态下的最佳决策
        if(actionLast!=-1 && stateLast!=-1){
            //先更新
+           learningTime++;   //学习次数+1
+           if(isPrintLog){
+               //搜集更新前的信息
+               logState[0]= this.stateLast;                
+               logAction[0]= this.actionLast;
+               logReward = rewardMatrix[actionLast][stateLast];
+               logR[0]= this.rewardMatrix[actionLast][stateLast];
+               logQ[0]= this.QMatrix[actionLast][stateLast];
+           }
            updateQMatrix(state);
         }else{
+
            //否则直接决策
            actionNow= makeDecision(state);
            //将当前的状态和决策保存下来，以便于下一次决策前进行Q矩阵的更新
            actionLast=actionNow;
            stateLast=state;
-           writeToFile(false);
+           if(isWriteQ){
+                writeToFile(isWriteR);
+           }
            return actionNow;
        }
        //更新之后进行决策
        actionNow =  makeDecision(state);
        actionLast=actionNow;
        stateLast=state;
+       if(isPrintLog){
+           //搜集之后的信息
+           logAction[1] = actionNow;
+           logState[1]= state;
+           //这两个是更新Q R  也就是update之后的信息
+           logR[1]= this.rewardMatrix[actionLast][stateLast];
+           logQ[1]= this.QMatrix[actionLast][stateLast];
+           //打印log
+           this.printLog(logState, logAction, logReward, logR, logQ);
+       }
        //根据参数决定是否写入文件
-       if(isWrite){
-           writeToFile(false);
+       if(isWriteQ){
+           writeToFile(isWriteR);
        }
        //返回action
        return actionNow;
     }
     
-   //打印Q矩阵的函数
-   public void printQMatrix(){
-       if(QMatrix==null){
-           System.out.println("Q矩阵还未创建");
-       }
-       int i,j;
-       for(i=0;i<actionNum;i++){
-           for(j=0;j<stateNum;j++){
-               System.out.print(QMatrix[i][j]+" ");
-           }
-           System.out.print("\n");
-       }
-   }
+
    
     //对learning 函数的重载，采用外部的reward而不是内部的reward矩阵进行学习
     /*
     Qlearning 学习函数
     inputt : state 当前的状态
              reward 外部的r
-             isWrite : 是否将更新后的Q矩阵写入到文件中 
+             isWriteQ : 是否将更新后的Q矩阵写入到文件中 
+             isWriteR: 是否将R矩阵写入文件中
+             isPrintLog:是否打印log
     output: 在当前状态下采取的action
     */
-    public int learning( int state,int reward,boolean isWrite){
+    public int learningQ( int state,int reward,boolean isWriteQ ,boolean isWriteR,boolean isPrintLog){
     //先根据当前的state更新上一步决策 的Q矩阵
     // 如果不是第一次 ，由于第一次决策没有上一次，所以不进行更新
+       int[] logState = new int[2]; int[] logAction = new int[2]; double logReward=-1; double[] logR = new double[2]; double[] logQ = new double[2];
        int actionNow=-1;  //当前状态下的最佳决策
        if(actionLast!=-1 && stateLast!=-1){
            //先更新
+            learningTime++;   //学习次数+1
+            if(isPrintLog){
+               //搜集更新前的信息
+               logState[0]= this.stateLast;                
+               logAction[0]= this.actionLast;
+               logReward = reward;
+               logR[0]= this.rewardMatrix[actionLast][stateLast];
+               logQ[0]= this.QMatrix[actionLast][stateLast];
+           }
            updateQMatrix(state,reward);
         }else{
            //否则直接决策
@@ -369,22 +402,61 @@ public class Qlearning {
            //将当前的状态和决策保存下来，以便于下一次决策前进行Q矩阵的更新
            actionLast=actionNow;
            stateLast=state;
-           writeToFile(false);
+           if(isWriteQ){
+                writeToFile(isWriteR); //这个是不是有问题啊？
+           }
            return actionNow;
        }
        //更新之后进行决策
        actionNow =  makeDecision(state);
+
+       
+       if(isPrintLog){
+           //搜集之后的信息
+           logAction[1] = actionNow;
+           logState[1]= state;
+           //这两个是更新Q R  也就是update之后的信息
+           logR[1]= this.rewardMatrix[actionLast][stateLast];
+           logQ[1]= this.QMatrix[actionLast][stateLast];
+           //打印log
+           this.printLog(logState, logAction, logReward, logR, logQ);
+       }
+       //根据参数决定是否写入文件
+       if(isWriteQ){
+           writeToFile(isWriteR);
+       }
        actionLast=actionNow;
        stateLast=state;
-       //根据参数决定是否写入文件
-       if(isWrite){
-           writeToFile(false);
-       }
        //返回action
        return actionNow;
     }
-   
-   
+    /*
+    learning 函数的重载，学习Q矩阵的同时，学习R矩阵，同时用到R矩阵的结果，reward包括即时的reward和R矩阵的reward
+         input: 
+             state 当前的状态
+             reward 外部的r
+             isWriteQ : 是否将更新后的Q矩阵写入到文件中 
+     i       isWriteR:是否写入R矩阵
+    isPrintLog :是否打印log
+    output: 在当前状态下采取的action
+    */
+   public int learningQR(int state,int reward,boolean isWriteQ, boolean isWriteR,boolean isPrintLog){
+       //先更新，更新reward矩阵，更新的是上一个state 和action的reward
+       //如果不是初始状态
+        if(actionLast!=-1 && stateLast!=-1){//更新reward,学习R矩阵
+             if(isPrintLog){
+                System.out.println("进入同时学习Q和R的函数,在更新R的模块前：");
+                 System.out.println("R矩阵更新前的值为："+this.rewardMatrix[actionLast][stateLast]);
+            }
+            this.updateRMatrix(reward);
+            //学习Q矩阵
+            return this.learningQ(state, reward, isWriteQ,isWriteR,isPrintLog);
+        }else{
+            //如果是初始状态不更新R矩阵（因为没有上一个状态)
+            return this.learningQ(state, reward, isWriteQ,isWriteR,isPrintLog);
+        }
+  }
+
    //打印R矩阵的函数
    public void printRewardMatrix(){
        if(rewardMatrix==null){
@@ -402,12 +474,54 @@ public class Qlearning {
        System.out.println("lastState"+ stateLast);
          System.out.println("lastAction"+ actionLast);
    }
+   //返回上一个状态reward矩阵的值
+   public double getRewardByR(){
+       return rewardMatrix[actionLast][stateLast];
+   }
+      //打印Q矩阵的函数
+   public void printQMatrix(){
+       if(QMatrix==null){
+           System.out.println("Q矩阵还未创建");
+       }
+       int i,j;
+       for(i=0;i<actionNum;i++){
+           for(j=0;j<stateNum;j++){
+               System.out.print(QMatrix[i][j]+" ");
+           }
+           System.out.print("\n");
+       }
+   }
+   //打印学习日志的函数
+   /*
+   都是数组形式
+   0 表示上一次的
+   1 表示这一次的
+   */
+   public void printLog(int[] state, int[] action,double reward,double R[], double Q[] ){
+       //打印训练日志
+       System.out.println("第 "+this.learningTime+" 轮学习");
+       System.out.println("step1:更新");
+       System.out.println("更新前的状态");
+       System.out.println("lastState:"+ state[0]+"\tlastAction"+action[0]+"\tlastR"+R[0]+"\tlastQ"+Q[0]);
+       this.QChangeRate = Math.abs(Q[1]-Q[0])/Math.abs(Q[0]);
+       this.AllQChangeRate += this.QChangeRate;
+       double averageQ = AllQChangeRate/this.learningTime;
+      
+       this.RChangeRate =  Math.abs(R[1]-R[0])/Math.abs(R[0]);
+       this.AllRChangedRate+= this.RChangeRate;
+        double averageR= AllRChangedRate/learningTime;
+       System.out.println("更新Q值和R值的reward值为："+reward+"\tlastState，lastAction的Q值和R值更新为:Q  "+Q[1]+"\tR："+R[1]);
+       System.out.println("单次Q矩阵变化率为: "+this.QChangeRate+"\tQ矩阵的平均变化率为："+averageQ 
+       +"\t单次R矩阵变化率为："+this.RChangeRate+"\tR矩阵平均变化率为："+averageR);
+       System.out.println("step2:决策");
+       System.out.println("当前的State为："+state[1]+"做出的决策为："+action[1]+"对应的Q值为"+QMatrix[action[1]][state[1]]);
+       System.out.println("Qlearning 结束");
+   }
    
-
     //测试主函数
    public static void main(String[] agrs){
-         Qlearning myQ= new Qlearning(10,50,0.5,0.3,".\\QMatrix.txt",".\\rewardMatrix.txt");
-         myQ.printQMatrix();
+         Qlearning myQ= new Qlearning(10,380,0.5,0.3,".\\QMatrix_V2.txt",".\\rewardMatrix.txt");
          myQ.printRewardMatrix();
+         //myQ.printRewardMatrix();
     }
 }
