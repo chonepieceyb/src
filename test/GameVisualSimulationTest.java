@@ -43,7 +43,7 @@ import util.XMLWriter;
 public class GameVisualSimulationTest {
     public static void main(String args[]) throws Exception {
         int k=0;
-        int j=6;
+        int j=9;
         int L=0;
         do{           
         do{
@@ -56,7 +56,7 @@ public class GameVisualSimulationTest {
 
         GameState gs = new GameState(pgs, utt);
         int MAXCYCLES = 3000;
-        int PERIOD =5;
+        int PERIOD =10;
         boolean gameover = false;
         System.err.println("K（赢得）的值为\t"+k);
            System.err.println("L（输的）的值为\t"+L);
@@ -64,7 +64,7 @@ public class GameVisualSimulationTest {
         AI ai1= new MyRtsAi(utt);  
        // AI ai1=new FirstRush(utt);
         AI ai2 = null;
-        switch(j%9)
+        switch(j%10)
         {
             case 0:
                 ai2 = new CRush_V2(utt);
@@ -93,10 +93,14 @@ public class GameVisualSimulationTest {
             case 8:
                 ai2 = new Simulate(utt);
                 break;
+            case 9:
+                ai2 = new MyNewAI(utt);break;
+                
+                            
         }
        // AI ai2 = new RandomBiasedAI();
 
-     // JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
+     JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
       //JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);
 
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
@@ -109,7 +113,7 @@ public class GameVisualSimulationTest {
 
                 // simulate:
                 gameover = gs.cycle();
-               // w.repaint();
+                w.repaint();
                 nextTimeToUpdate+=PERIOD;
             } else {
                 try {
@@ -130,7 +134,7 @@ public class GameVisualSimulationTest {
            k=0;
         }
         System.out.println("Game Over");
-       //w.dispose();
+        w.dispose();
          }while(k<20&&L<10);//(k%10!=0||k==0);
          j++;
         }while(k!=180);

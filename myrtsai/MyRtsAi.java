@@ -190,7 +190,9 @@ public class MyRtsAi extends AbstractionLayerAI{
      //保存的上一次的单位状态
      UnitsState ourUnitsState = new UnitsState();   //我方的
      UnitsState enermyUnitsState = new UnitsState();   //地方的
-     
+     //基地的坐标
+     int baseX;
+     int baseY;
      //一些矩阵
      int m_battleWeight[][] ={    //战斗权系数矩阵,(单兵战斗力对比一致性矩阵)
         {1 ,-3,-5,-4},{3 ,1, 2, -2},{ 5 ,-2, 1, 2},{4 ,2, -2 ,1}};
@@ -213,7 +215,7 @@ public class MyRtsAi extends AbstractionLayerAI{
     int offsetMajor[]={0,1,2,3,4,5,6,7,8,9};
     //和action 有关的数组
     int actionA_D[]={4,4,4,4,0,0,0,0};
-    String actionMajor[]={"Worker","Light","Ranged","Heavy","Worker","Light","Ranged","Heavy"};
+    String actionMajor[]={"Worker","Light","Ranged","Light","Worker","Light","Ranged","Heavy"};
     
     //和Qlearning 有关的参数 ,Qlearning 在构造函数中构造，而Information 在getAction中生成
     Qlearning myQlearning = null;
@@ -275,13 +277,18 @@ public class MyRtsAi extends AbstractionLayerAI{
         int workersNum =0;
         int bX;   //兵营坐标
         int bY;
+        //基地坐标
         boolean isTrain = false;  //本轮是否学习了
         if(player==0){
             bX=4;
             bY=3;
+            baseX=3;
+            baseY=3;
         }else{
             bX=13;
             bY=16;
+             baseX=13;
+            baseY=13;
         }
         //创建Qlearning 
         if(gs.getTime()==0){
@@ -576,7 +583,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                 //暂定
                 Random r= new Random();
                 //这里的是 生产时间+移动时间 +随机的攻击时间 （随机的攻击时间是 随机0-5个attackTime)
-                timeStep = ( buildType.produceTime + (int)distance/buildType.moveTime + (0+r.nextInt()%6)*buildType.attackTime)*2;
+                timeStep = ( buildType.produceTime + (int)distance/buildType.moveTime + (0+r.nextInt()%6)*buildType.attackTime);
             }else{
                 timeStep = fixTimeStep;
             }
@@ -1325,12 +1332,23 @@ public class MyRtsAi extends AbstractionLayerAI{
                 mybase = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
             }
         }
-        if (closestEnemy!=null && (closestDistance < pgs.getHeight()/4 || mybase < pgs.getHeight()/4)) {
+        if (closestEnemy!=null && (closestDistance < pgs.getHeight()/3 || mybase < pgs.getHeight()/3)) {
             attack(u,closestEnemy);
         }
         else
         {
-            attack(u, null);
+            //如果附近没有敌人，返回基地
+            //attack(u, null);
+            Random r= new Random();
+            int randX =(int)(-pgs.getHeight()/6+(r.nextInt())%(pgs.getHeight()/6)) ;
+             int randY = (int)(-pgs.getHeight()/6+(r.nextInt())%(pgs.getHeight()/6));
+             if(baseX+randX<0 || baseX+randX>pgs.getWidth()){
+                 randX=0;
+             }
+             if(baseY+randY<0 || baseY+randY>pgs.getWidth()){
+                 randY=0;
+             }
+            move(u,baseX+ randX ,baseY+randY);
         }
         
     }
