@@ -167,7 +167,7 @@ public class MyRtsAi extends AbstractionLayerAI{
                   lastEnermyA_D = args[3];
                   lastOurA_D= args[4];
                   lastEnermyMajor = args[5];
-                  lastEnermyA_D= args[6];
+                  lastOurMajor= args[6];
                   lastCombatLevel = args[7];
                   lastTime=args[8];
               }catch(Exception e){
@@ -439,10 +439,10 @@ public class MyRtsAi extends AbstractionLayerAI{
                 //两个null 是因为游戏快结束了
                 if(trainTime>this.trainInformation.writeStep || my_Base==null || enermy_Base==null){
                     trainTime=0;
-                    action=myQlearning.learningQR(state,reward, true,true,true);
+                    action=myQlearning.learningQR(state,reward, true,true,false);
                 }else{
                       trainTime++;
-                     action=myQlearning.learningQR(state,reward,false,false,true);
+                     action=myQlearning.learningQR(state,reward,false,false,false);
                 }
             }
             //将当前战斗力存储下来
@@ -509,7 +509,7 @@ public class MyRtsAi extends AbstractionLayerAI{
              //根据更新后的信息计算新的timeStep：
              this.trainInformation.setTimeStep(this.calTimeStep(pgs, state, action,enermyA_D));
              System.out.println("打印战场信息");
-            //this.printGameState();
+            this.printGameState();
              System.out.println("打印决策后的训练信息");
            this.printTrainInformation();
        }
@@ -594,7 +594,7 @@ public class MyRtsAi extends AbstractionLayerAI{
         }else{
             System.out.println("攻防判断错误");
         }
-        int ourMajor = this.lastState.lastEnermyMajor;
+        int ourMajor = this.lastState.lastOurMajor;
         switch(ourMajor){
             case 0: System.out.println("我方主要兵种为Worker");break;
             case 1: System.out.println("我方主要兵种为Light");break;

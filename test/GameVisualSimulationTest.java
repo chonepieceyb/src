@@ -61,9 +61,9 @@ public class GameVisualSimulationTest {
         System.err.println("K（赢得）的值为\t"+k);
            System.err.println("L（输的）的值为\t"+L);
          System.err.println("J的值为\t"+j);
-        AI ai1= new MyRtsAi(utt);  
+        AI ai2= new MyRtsAi(utt);  
        // AI ai1=new FirstRush(utt);
-        AI ai2= null;
+        AI ai1= null;
         switch(j%10)
         {
             case 0:
@@ -94,7 +94,7 @@ public class GameVisualSimulationTest {
                 ai1 = new Simulate(utt);
                 break;
             case 9:
-                ai2= new MyNewAI(utt);break;
+                ai1= new MyNewAI(utt);break;
                 
                             
         }
