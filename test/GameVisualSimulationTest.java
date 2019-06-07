@@ -63,38 +63,38 @@ public class GameVisualSimulationTest {
          System.err.println("J的值为\t"+j);
         AI ai1= new MyRtsAi(utt);  
        // AI ai1=new FirstRush(utt);
-        AI ai2 = null;
+        AI ai2= null;
         switch(j%10)
         {
             case 0:
-                ai2 = new CRush_V2(utt);
+                ai1= new CRush_V2(utt);
                 break;
             case 1:
-                ai2 = new CRush_V1(utt);
+                ai1 = new CRush_V1(utt);
                 break;
             case 2:
-                ai2 = new LightRush(utt);
+                ai1 = new LightRush(utt);
                 break;
             case 3:
-                ai2 = new HeavyRush(utt);
+                ai1 = new HeavyRush(utt);
                 break;
             case 4:
-                ai2 = new FirstRush(utt);
+                ai1 = new FirstRush(utt);
                 break;
             case 5:
-                ai2 = new LightDefense(utt);
+                ai1 = new LightDefense(utt);
                 break;
             case 6:
-                ai2 = new HeavyDefense(utt);
+                ai1 = new HeavyDefense(utt);
                 break;
             case 7:
-                ai2= new bottom(utt);
+                ai1= new bottom(utt);
                 break;
             case 8:
-                ai2 = new Simulate(utt);
+                ai1 = new Simulate(utt);
                 break;
             case 9:
-                ai2 = new MyNewAI(utt);break;
+                ai2= new MyNewAI(utt);break;
                 
                             
         }
@@ -125,7 +125,7 @@ public class GameVisualSimulationTest {
         }while(!gameover && gs.getTime()<MAXCYCLES);
         ai1.gameOver(gs.winner());
         ai2.gameOver(gs.winner());
-        if(gs.winner()==0){
+        if(gs.winner()==1){
            k++;
            L=0;
         }
@@ -135,9 +135,9 @@ public class GameVisualSimulationTest {
         }
         System.out.println("Game Over");
         w.dispose();
-         }while(k<20&&L<10);//(k%10!=0||k==0);
+         }while(k<10&&L<10);//(k%10!=0||k==0);
          j++;
-        }while(k!=180);
+        }while(k!=100);
     }    
        
 }
