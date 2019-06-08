@@ -18,10 +18,13 @@ import ai.montecarlo.MonteCarlo;
 import ai.montecarlo.lsi.LSI;
 import ai.portfolio.portfoliogreedysearch.PGSAI;
 import ai.scv.SCV;
+import bottom.bottom;
 import gui.PhysicalGameStatePanel;
 import java.io.OutputStreamWriter;
 import javax.swing.JFrame;
+import mymicrorts.Simulate;
 import myrtsai.AI2;
+import myAi.*;
 import myrtsai.FirstRush;
 import myrtsai.MyRtsAi;
 import rts.GameState;
@@ -40,24 +43,24 @@ import util.XMLWriter;
 public class GameVisualSimulationTest {
     public static void main(String args[]) throws Exception {
         int k=0;
-        //int j=1;
-        //do{           
+        int j=10;
+        do{           
         do{
             //System.out.println("     J:"+j);
             System.out.println("     K:"+k);
         UnitTypeTable utt = new UnitTypeTable();
        AStarPathFinding aps= new AStarPathFinding();
-        PhysicalGameState pgs = PhysicalGameState.load("maps/8x8/basesWorkers8x8.xml", utt);
+        PhysicalGameState pgs = PhysicalGameState.load("maps/16x16/basesWorkers16x16.xml", utt);
 //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
         GameState gs = new GameState(pgs, utt);
         int MAXCYCLES = 3000;
-        int PERIOD = 15;
+        int PERIOD = 1;
         boolean gameover = false;
         
         AI ai1 = new MyRtsAi(utt);  
-        AI ai2 =new MyRtsAi(utt);
-        /*switch(j%7)
+        AI ai2 =null;
+        switch(j%11)
         {
             case 0:
                 ai2 = new CRush_V1(utt);
@@ -80,7 +83,19 @@ public class GameVisualSimulationTest {
             case 6:
                 ai2 = new HeavyDefense(utt);
                 break;
-        }*/
+            case 7:
+                ai2 = new MyNewAI(utt);
+                break;
+            case 8:
+                ai2 = new bottom(utt);
+                break;
+            case 9:
+                ai2 = new Simulate(utt);
+                break;
+            case 10:
+                ai2 = new  MyAi(utt);
+                break;
+        }
        // AI ai2 = new RandomBiasedAI();
 
         JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
@@ -108,16 +123,15 @@ public class GameVisualSimulationTest {
         }while(!gameover && gs.getTime()<MAXCYCLES);
         ai1.gameOver(gs.winner());
         ai2.gameOver(gs.winner());
-        k++;
-        //if(gs.winner()==0)
-        //    k++;
-        //else
-         //   k=0;
+        if(gs.winner()==0)
+            k++;
+        else
+            k=0;
         System.out.println("Game Over");
         w.dispose();
-         }while(k!=1000);//(k%10!=0||k==0);
-        //j++;
-        //}while(k!=70);
+         }while(k%10!=0||k==0);
+        j++;
+        }while(k!=200);
     }    
        
 }
