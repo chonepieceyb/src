@@ -23,10 +23,9 @@ import gui.PhysicalGameStatePanel;
 import java.io.OutputStreamWriter;
 import javax.swing.JFrame;
 import mymicrorts.Simulate;
-import myrtsai.AI2;
 import myAi.*;
-import myrtsai.FirstRush;
-import myrtsai.MyRtsAi;
+import QLAi.FirstRush;
+import QLAi.QLAi;
 import rts.GameState;
 import rts.PhysicalGameState;
 import rts.PlayerAction;
@@ -58,7 +57,7 @@ public class GameVisualSimulationTest {
         int PERIOD = 1;
         boolean gameover = false;
         
-        AI ai1 = new MyRtsAi(utt);  
+        AI ai1 = new QLAi(utt);  
         AI ai2 =null;
         switch(j%11)
         {

@@ -1,4 +1,4 @@
-package myrtsai;
+package QLAi;
 
 import java.util.ArrayList;
 import java.util.LinkedList;

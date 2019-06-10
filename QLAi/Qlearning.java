@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package myrtsai;
+package QLAi;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -100,6 +100,12 @@ public class Qlearning {
             e.printStackTrace();
         }
     }
+    Qlearning(double[][] QM, int aNum,int sNum){
+        QMatrix = QM;
+        this.actionNum = aNum;
+        this.stateNum = sNum;
+    }
+
     public void reset(int a,int s,double a1,double r1, String QFile,String rFile){
         actionNum=a; stateNum=s; alpha=a1; r=r1; 
         QMatrixFileName=QFile;
