@@ -4,6 +4,7 @@
  */
 package test;
 
+import QLAi.QLAi;
 import ai.core.AI;
 import ai.*;
 import ai.abstraction.*;
@@ -94,7 +95,7 @@ public class GameVisualSimulationTest {
                 ai1 = new Simulate(utt);
                 break;
             case 9:
-                ai1= new MyNewAI(utt);break;
+                ai1= new QLAi(utt);break;
                 
                             
         }

@@ -439,10 +439,10 @@ public class MyRtsAi extends AbstractionLayerAI{
                 //两个null 是因为游戏快结束了
                 if(trainTime>this.trainInformation.writeStep || my_Base==null || enermy_Base==null){
                     trainTime=0;
-                    action=myQlearning.learningQR(state,reward, true,true,false);
+                    action=myQlearning.learningQR(state,reward, true,true,true);
                 }else{
                       trainTime++;
-                     action=myQlearning.learningQR(state,reward,false,false,false);
+                     action=myQlearning.learningQR(state,reward,false,false,true);
                 }
             }
             //将当前战斗力存储下来
@@ -507,7 +507,7 @@ public class MyRtsAi extends AbstractionLayerAI{
              ourUnitsState.update(ourUnits);
              enermyUnitsState.update(enermyUnits);
              //根据更新后的信息计算新的timeStep：
-             this.trainInformation.setTimeStep(this.calTimeStep(pgs, state, action,enermyA_D));
+             this.trainInformation.setTimeStep(this.calTimeStep(pgs, 100, action,enermyA_D));
              System.out.println("打印战场信息");
             this.printGameState();
              System.out.println("打印决策后的训练信息");
@@ -1083,14 +1083,7 @@ public class MyRtsAi extends AbstractionLayerAI{
           */
          return output;
     }
-    
-    /*
-      获取reward的函数，根据对战的结果我们发现对于攻击和防守reward应该不同
-      根据成员变量 上一步的action 以及当前战场的情况来得到上一步action 的reward
-    */
-    private double getReward(){
-        return 0;
-    }
+
     /*
     gs 和 Player同之前
     input :
